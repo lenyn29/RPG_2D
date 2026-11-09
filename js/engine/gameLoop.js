@@ -1,6 +1,7 @@
 import { Player } from '../entities/player.js';
 import { Enemy } from '../entities/enemy.js';
 import { CombatSystem } from './combatSystem.js';
+import { ParticleSystem } from './particleSystem.js';
 import { Iso } from './isometric.js';
 import { InputManager } from './inputManager.js';
 import { MapManager } from './mapManager.js';
@@ -16,7 +17,8 @@ class GameEngine {
 
         this.inputManager = new InputManager(this.canvas);
         this.mapManager = new MapManager(12345);
-        this.combatSystem = new CombatSystem();
+        this.particleSystem = new ParticleSystem();
+        this.combatSystem = new CombatSystem(this.particleSystem);
 
         this.player = new Player(8.0, 8.0); 
         
@@ -42,12 +44,13 @@ class GameEngine {
             this.mapManager.update(this.player.x, this.player.y);
             const activeObjects = this.mapManager.getActiveObjects() || [];
             
-            // 1. Procesar Combate (Ataques del jugador y enemigos)
+            // Procesar combate y partículas
             this.combatSystem.processPlayerAttack(this.player, this.enemies);
-            this.combatSystem.processEnemyAttacks(this.player, this.enemies, this.mapManager, activeObjects);
-            this.combatSystem.updateRespawns(this.enemies, this.mapManager);
+            this.combatSystem.processEnemyAttacks(this.player, this.enemies);
+            this.combatSystem.updateRespawns(this.enemies);
+            this.particleSystem.update();
 
-            // 2. Actualizar Entidades
+            // Actualizar entidades
             this.player.update(this.inputManager, this.mapManager, activeObjects, this.enemies);
 
             this.enemies.forEach(enemy => {
@@ -71,7 +74,7 @@ class GameEngine {
             const activeObjects = this.mapManager.getActiveObjects() || [];
             const renderList = [
                 this.player,
-                ...this.enemies.filter(e => e.state !== 'dead'), // Ocultar muertos temporalmente
+                ...this.enemies, // Incluimos muertos para ver su animación dramática
                 ...activeObjects
             ];
 
@@ -82,6 +85,9 @@ class GameEngine {
                     entity.draw(this.ctx, cameraOffsetX, cameraOffsetY, timestamp);
                 }
             });
+
+            // Dibujar partículas de sangre sobre las entidades
+            this.particleSystem.draw(this.ctx, cameraOffsetX, cameraOffsetY, Iso);
 
             this.inputManager.draw(this.ctx);
         } catch (e) {
