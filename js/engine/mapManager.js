@@ -68,7 +68,7 @@ export class MapManager {
     }
 
     isWalkable(worldX, worldY) {
-        return true; // Tránsito libre en chunks cargados
+        return true; 
     }
 
     draw(ctx, cameraOffsetX, cameraOffsetY, timestamp) {
