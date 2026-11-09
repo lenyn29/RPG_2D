@@ -1,78 +1,103 @@
 import { Iso } from '../engine/isometric.js';
 
 export class GameObject {
-    constructor(tileX, tileY, type = 'crystal_cluster') {
+    constructor(tileX, tileY, type = 'rock_ore') {
         this.x = tileX;
         this.y = tileY;
-        this.type = type; // 'crystal_cluster', 'stalactite_ore'
-        this.width = 1.0;
-        this.height = 1.0;
+        this.type = type; // 'rock_ore' o 'tree'
+        
+        // Radio de colisión adaptado al tipo de objeto
+        this.radius = type === 'tree' ? 0.6 : 0.55; 
+        
+        // Desfase único para que cada árbol se mueva con el viento de forma independiente
+        this.windOffset = tileX * 12.34 + tileY * 56.78;
     }
 
-    draw(ctx, cameraOffsetX, cameraOffsetY) {
+    draw(ctx, cameraOffsetX, cameraOffsetY, timestamp = 0) {
         const screen = Iso.toScreen(this.x, this.y);
         const renderX = screen.x + cameraOffsetX;
         const renderY = screen.y + cameraOffsetY;
 
-        // 1. Sombra base en el suelo
-        ctx.fillStyle = 'rgba(0, 0, 0, 0.4)';
+        // 1. Sombra volumétrica en el suelo
+        ctx.fillStyle = 'rgba(0, 0, 0, 0.45)';
         ctx.beginPath();
-        ctx.ellipse(renderX, renderY + 4, Iso.tileWidth / 2.5, Iso.tileHeight / 3, 0, 0, Math.PI * 2);
+        ctx.ellipse(renderX, renderY + 4, Iso.tileWidth / 2.2, Iso.tileHeight / 3.2, 0, 0, Math.PI * 2);
         ctx.fill();
 
-        if (this.type === 'crystal_cluster') {
-            // Dibujo procedural de un cúmulo de cristales de energía / menas de piedra
-            
-            // Cristal Central Grande (Cian / Turquesa)
+        if (this.type === 'rock_ore') {
+            // --- MENA DE PIEDRA / ROCA SÓLIDA ---
+            // Base principal de la roca
+            ctx.fillStyle = '#334155';
+            ctx.beginPath();
+            ctx.moveTo(renderX, renderY + 6);
+            ctx.lineTo(renderX + 18, renderY - 2);
+            ctx.lineTo(renderX, renderY - 18);
+            ctx.lineTo(renderX - 18, renderY - 2);
+            ctx.closePath();
+            ctx.fill();
+            ctx.strokeStyle = '#1E293B';
+            ctx.lineWidth = 1.5;
+            ctx.stroke();
+
+            // Cara derecha (Sombra volumétrica)
+            ctx.fillStyle = '#1E293B';
+            ctx.beginPath();
+            ctx.moveTo(renderX, renderY + 6);
+            ctx.lineTo(renderX + 18, renderY - 2);
+            ctx.lineTo(renderX + 18, renderY + 2);
+            ctx.lineTo(renderX, renderY + 10);
+            ctx.closePath();
+            ctx.fill();
+
+            // Cara izquierda (Luz lateral)
+            ctx.fillStyle = '#475569';
+            ctx.beginPath();
+            ctx.moveTo(renderX, renderY + 6);
+            ctx.lineTo(renderX - 18, renderY - 2);
+            ctx.lineTo(renderX - 18, renderY + 2);
+            ctx.lineTo(renderX, renderY + 10);
+            ctx.closePath();
+            ctx.fill();
+
+            // Cristales de energía incrustados
             ctx.fillStyle = '#00F0FF';
             ctx.beginPath();
-            ctx.moveTo(renderX, renderY - 28);       // Punta superior
-            ctx.lineTo(renderX + 8, renderY - 8);    // Lado derecho
-            ctx.lineTo(renderX, renderY + 2);        // Base centro
-            ctx.lineTo(renderX - 8, renderY - 8);    // Lado izquierdo
+            ctx.moveTo(renderX - 2, renderY - 18);
+            ctx.lineTo(renderX + 4, renderY - 8);
+            ctx.lineTo(renderX - 2, renderY - 3);
+            ctx.lineTo(renderX - 8, renderY - 10);
             ctx.closePath();
             ctx.fill();
 
-            // Brillo interno del cristal central (Cara izquierda más clara)
             ctx.fillStyle = '#A5F3FC';
             ctx.beginPath();
-            ctx.moveTo(renderX, renderY - 28);
-            ctx.lineTo(renderX, renderY + 2);
-            ctx.lineTo(renderX - 8, renderY - 8);
+            ctx.moveTo(renderX - 2, renderY - 18);
+            ctx.lineTo(renderX - 2, renderY - 3);
+            ctx.lineTo(renderX - 8, renderY - 10);
             ctx.closePath();
             ctx.fill();
 
-            // Cristal Secundario Izquierdo (Púrpura / Mineral energético)
-            ctx.fillStyle = '#8B5CF6';
+        } else if (this.type === 'tree') {
+            // --- ÁRBOL CON ANIMACIÓN DE VIENTO ---
+            // Tronco del árbol
+            ctx.fillStyle = '#78350f';
+            ctx.fillRect(renderX - 4, renderY - 14, 8, 18);
+
+            // Oscilación del follaje simulando viento mediante función seno
+            const windSpeed = 0.0025;
+            const sway = Math.sin(timestamp * windSpeed + this.windOffset) * 4.0;
+
+            // Follaje inferior (Copa principal)
+            ctx.fillStyle = '#065f46';
             ctx.beginPath();
-            ctx.moveTo(renderX - 12, renderY - 18);
-            ctx.lineTo(renderX - 4, renderY - 4);
-            ctx.lineTo(renderX - 8, renderY + 6);
-            ctx.lineTo(renderX - 16, renderY - 2);
-            ctx.closePath();
+            ctx.ellipse(renderX + sway, renderY - 36, 24, 18, 0, 0, Math.PI * 2);
             ctx.fill();
 
-            // Cristal Secundario Derecho
-            ctx.fillStyle = '#0ea5e9';
+            // Follaje superior (Brillo de copa)
+            ctx.fillStyle = '#10b981';
             ctx.beginPath();
-            ctx.moveTo(renderX + 10, renderY - 20);
-            ctx.lineTo(renderX + 18, renderY - 6);
-            ctx.lineTo(renderX + 12, renderY + 4);
-            ctx.lineTo(renderX + 6, renderY - 8);
-            ctx.closePath();
+            ctx.ellipse(renderX + (sway * 0.7), renderY - 44, 16, 12, 0, 0, Math.PI * 2);
             ctx.fill();
-
-            // Efecto de brillo neón (Glow)
-            ctx.shadowColor = '#00F0FF';
-            ctx.shadowBlur = 8;
-            ctx.strokeStyle = '#FFFFFF';
-            ctx.lineWidth = 1;
-            ctx.beginPath();
-            ctx.moveTo(renderX, renderY - 28);
-            ctx.lineTo(renderX + 8, renderY - 8);
-            ctx.lineTo(renderX, renderY + 2);
-            ctx.stroke();
-            ctx.shadowBlur = 0; // Reset
         }
     }
 }
