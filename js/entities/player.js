@@ -4,7 +4,7 @@ export class Player {
     constructor(startX, startY) {
         this.x = startX; 
         this.y = startY; 
-        this.speed = 0.08; 
+        this.speed = 0.06; // Velocidad óptima y constante
         
         // Carga de la hoja de sprites física
         this.sprite = new Image();
@@ -32,22 +32,22 @@ export class Player {
         if (move.x !== 0 || move.y !== 0) {
             this.state = 'walk';
             
-            // 1. Transformación exacta de coordenadas de pantalla (Joystick) a Mundo Isométrico
-            const halfW = Iso.tileWidth / 2;
-            const halfH = Iso.tileHeight / 2;
+            // 1. Normalizar el vector del joystick para evitar exceso de velocidad en diagonales de pantalla
+            const joyLen = Math.sqrt(move.x * move.x + move.y * move.y);
+            const joyX = joyLen > 0 ? move.x / joyLen : 0;
+            const joyY = joyLen > 0 ? move.y / joyLen : 0;
 
-            const screenDx = move.x * this.speed;
-            const screenDy = move.y * this.speed;
+            // 2. Transformación de Pantalla (Joystick) a Mundo Isométrico (Screen-to-World Matrix)
+            // Esto asegura que Arriba en el joystick mueva al personaje hacia arriba en la pantalla.
+            const rawDx = joyX + joyY;
+            const rawDy = -joyX + joyY;
 
-            const rawDx = (screenDx / halfW + screenDy / halfH) / 2;
-            const rawDy = (screenDy / halfH - screenDx / halfW) / 2;
+            // 3. Normalización final del movimiento en el mundo para garantizar velocidad constante
+            const worldLen = Math.sqrt(rawDx * rawDx + rawDy * rawDy);
+            const dirX = worldLen > 0 ? (rawDx / worldLen) * this.speed : 0;
+            const dirY = worldLen > 0 ? (rawDy / worldLen) * this.speed : 0;
 
-            // Normalización estricta para eliminar cualquier aceleración en diagonales
-            const len = Math.sqrt(rawDx * rawDx + rawDy * rawDy);
-            const dirX = len > 0 ? (rawDx / len) * this.speed : 0;
-            const dirY = len > 0 ? (rawDy / len) * this.speed : 0;
-
-            // 2. Movimiento independiente en X e Y con colisión
+            // 4. Movimiento independiente en X e Y con colisión estricta en el mapa
             const nextX = this.x + dirX;
             if (mapManager ? mapManager.isWalkable(nextX, this.y) : true) {
                 this.x = nextX;
@@ -58,19 +58,19 @@ export class Player {
                 this.y = nextY;
             }
 
-            // 3. Mapeo angular exacto (Arriba = 0°, Derecha = 90°, Abajo = 180°, Izquierda = 270°)
-            // - Arriba (0°): Rango de 60° (-30° a 30° / 330° a 30°)
+            // 5. Mapeo angular exacto basado en el joystick (Arriba = 0°, Derecha = 90°, Abajo = 180°, Izquierda = 270°)
+            // - Arriba (0°): Rango de 60° (330° a 30°)
             // - Derecha (90°): Rango de 120° (30° a 150°)
             // - Abajo (180°): Rango de 60° (150° a 210°)
             // - Izquierda (270°): Rango de 120° (210° a 330°)
             let angle = Math.atan2(move.x, -move.y) * (180 / Math.PI);
             if (angle < 0) angle += 360;
 
-            if (angle >= 300 || angle <= 0) {
+            if (angle >= 330 || angle <= 30) {
                 this.facing = 'up';
-            } else if (angle > 0 && angle < 120) {
+            } else if (angle > 30 && angle < 150) {
                 this.facing = 'right';
-            } else if (angle >= 120 && angle <= 180) {
+            } else if (angle >= 150 && angle <= 210) {
                 this.facing = 'down';
             } else {
                 this.facing = 'left';
