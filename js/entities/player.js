@@ -4,7 +4,7 @@ export class Player {
     constructor(startX, startY) {
         this.x = startX; 
         this.y = startY; 
-        this.speed = 0.08; // Velocidad adaptada al mapa 32x32
+        this.speed = 0.08; 
         
         // Carga de la hoja de sprites física
         this.sprite = new Image();
@@ -32,22 +32,27 @@ export class Player {
         if (move.x !== 0 || move.y !== 0) {
             this.state = 'walk';
             
+            // Normalización del vector para evitar exceso de velocidad en diagonales
+            const length = Math.sqrt(move.x * move.x + move.y * move.y);
+            const dirX = length > 0 ? move.x / length : 0;
+            const dirY = length > 0 ? move.y / length : 0;
+
             // Movimiento independiente en X e Y con colisión
-            const nextX = this.x + move.x * this.speed;
+            const nextX = this.x + dirX * this.speed;
             if (mapManager ? mapManager.isWalkable(nextX, this.y) : true) {
                 this.x = nextX;
             }
 
-            const nextY = this.y + move.y * this.speed;
+            const nextY = this.y + dirY * this.speed;
             if (mapManager ? mapManager.isWalkable(this.x, nextY) : true) {
                 this.y = nextY;
             }
 
-            // Mapeo angular exacto con Arriba = 0°:
-            // - Arriba (0°): Rango de 60° (-30° a 30° / 330° a 30°)
+            // Mapeo angular exacto basado en el Joystick (Arriba = 0°):
+            // - Arriba (0°): Rango de 60° (330° a 30°)
             // - Derecha (90°): Rango de 120° (30° a 150°)
             // - Abajo (180°): Rango de 60° (150° a 210°)
-            // - Izquierda (270°): Rango de 120° (210° to 330°)
+            // - Izquierda (270°): Rango de 120° (210° a 330°)
             const rad = Math.atan2(move.x, -move.y);
             let angle = rad * (180 / Math.PI);
             if (angle < 0) angle += 360;
