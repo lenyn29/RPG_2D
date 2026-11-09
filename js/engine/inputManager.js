@@ -1,22 +1,7 @@
 export class InputManager {
-    // Añade este método dentro de tu clase InputManager
-    isRestartTriggered(player, canvasWidth, canvasHeight) {
-        if (!player || !player.showRestartButton) return false;
-        
-        // Coordenadas del botón centrado en pantalla
-        const btnX = canvasWidth / 2;
-        const btnY = canvasHeight / 2 + 50;
-        const btnW = 180;
-        const btnH = 50;
-
-        if (this.attackPressed || this.touchActive) {
-            // Validar si algún toque actual cae dentro del botón de reinicio
-            // (Simplificado para verificar el toque activo)
-        }
-        return false;
-    }
-    constructor(canvas) {
+    constructor(canvas, player = null) {
         this.canvas = canvas;
+        this.player = player;
         this.touchActive = false;
         this.touchId = null;
         this.baseX = 0;
@@ -37,6 +22,10 @@ export class InputManager {
         this.setupListeners();
     }
 
+    setPlayer(player) {
+        this.player = player;
+    }
+
     setupListeners() {
         window.addEventListener('resize', () => {
             this.attackButton.x = window.innerWidth - 80;
@@ -47,7 +36,18 @@ export class InputManager {
             for (let i = 0; i < e.changedTouches.length; i++) {
                 const touch = e.changedTouches[i];
 
-                // 1. Verificar si toca el botón de ataque (Mitad derecha / Zona inferior derecha)
+                // 1. Verificar si pulsa el botón de reinicio al morir el héroe
+                if (this.player && this.player.showRestartButton) {
+                    const bx = window.innerWidth / 2;
+                    const by = window.innerHeight / 2 + 50;
+                    if (touch.clientX >= bx - 90 && touch.clientX <= bx + 90 &&
+                        touch.clientY >= by - 25 && touch.clientY <= by + 25) {
+                        window.location.reload();
+                        return;
+                    }
+                }
+
+                // 2. Verificar si toca el botón de ataque (Mitad derecha / Zona inferior derecha)
                 const adx = touch.clientX - this.attackButton.x;
                 const ady = touch.clientY - this.attackButton.y;
                 if (Math.sqrt(adx * adx + ady * ady) <= this.attackButton.radius + 15) {
@@ -56,7 +56,7 @@ export class InputManager {
                     continue;
                 }
 
-                // 2. Joystick en la mitad izquierda de la pantalla
+                // 3. Joystick en la mitad izquierda de la pantalla
                 if (!this.touchActive && touch.clientX < window.innerWidth / 2) {
                     this.touchId = touch.identifier;
                     this.baseX = touch.clientX;
@@ -99,10 +99,9 @@ export class InputManager {
         window.addEventListener('touchcancel', endHandler);
     }
 
-    // Devuelve true una sola vez por pulsación de ataque
     isAttackTriggered() {
         if (this.attackPressed) {
-            this.attackPressed = false; // Consumir el evento
+            this.attackPressed = false; // Consumir evento de ataque
             return true;
         }
         return false;
@@ -144,20 +143,37 @@ export class InputManager {
             ctx.stroke();
         }
 
-        // 2. Dibujar Botón de Ataque Derecho (Fijo en UI)
+        // 2. Dibujar Botón de Ataque Derecho (UI fija)
         ctx.beginPath();
         ctx.arc(this.attackButton.x, this.attackButton.y, this.attackButton.radius, 0, Math.PI * 2);
         ctx.fillStyle = this.attackTouchId !== null ? 'rgba(239, 68, 68, 0.7)' : 'rgba(239, 68, 68, 0.35)';
         ctx.fill();
-        ctx.strokeStyle = '#EF4444'; // Rojo combate
+        ctx.strokeStyle = '#EF4444'; 
         ctx.lineWidth = 3;
         ctx.stroke();
 
-        // Icono o texto dentro del botón de ataque
         ctx.fillStyle = '#FFFFFF';
         ctx.font = 'bold 14px sans-serif';
         ctx.textAlign = 'center';
         ctx.textBaseline = 'middle';
         ctx.fillText('⚔️', this.attackButton.x, this.attackButton.y);
+
+        // 3. Dibujar Botón de Reinicio si el Héroe ha muerto y terminó su animación
+        if (this.player && this.player.showRestartButton) {
+            const bx = ctx.canvas.width / 2;
+            const by = ctx.canvas.height / 2 + 50;
+            
+            ctx.fillStyle = 'rgba(239, 68, 68, 0.9)';
+            ctx.fillRect(bx - 90, by - 25, 180, 50);
+            ctx.strokeStyle = '#FFFFFF';
+            ctx.lineWidth = 2;
+            ctx.strokeRect(bx - 90, by - 25, 180, 50);
+
+            ctx.fillStyle = '#FFFFFF';
+            ctx.font = 'bold 16px sans-serif';
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+            ctx.fillText('🔄 REINICIAR', bx, by);
+        }
     }
 }
