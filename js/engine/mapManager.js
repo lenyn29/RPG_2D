@@ -1,119 +1,137 @@
 import { Iso } from './isometric.js';
+import { GameObject } from '../entities/gameObject.js';
 
 export class MapManager {
-    constructor() {
-        this.rows = 32;
-        this.cols = 32;
-        this.grid = [];
-        
-        // Generación procedural del mapa 32x32: Pradera (2) y Senderos (3)
-        for (let x = 0; x < this.cols; x++) {
-            this.grid[x] = [];
-            for (let y = 0; y < this.rows; y++) {
-                // Diseñar cruces de caminos orgánicos y amplias praderas
-                if (Math.abs(x - 16) < 2 || Math.abs(y - 16) < 2 || (x + y) % 8 === 0) {
-                    this.grid[x][y] = 3; // Sendero de tierra
-                } else {
-                    this.grid[x][y] = 2; // Pradera de pasto
+    constructor(seed = 1337) {
+        this.seed = seed;
+        this.chunkSize = 16; // 16x16 tiles por chunk
+        this.chunks = new Map(); // Almacena los chunks generados: "chunkX,chunkY" -> ChunkData
+        this.renderDistance = 2; // Radio de chunks cargados alrededor del jugador
+    }
+
+    // Generador pseudo-aleatorio determinista basado en semilla (Mulberry32)
+    _seededRandom(seed) {
+        let t = seed += 0x6D2B79F5;
+        t = Math.imul(t ^ t >>> 15, t | 1);
+        t ^= t + Math.imul(t ^ t >>> 7, t | 61);
+        return ((t ^ t >>> 14) >>> 0) / 4294967296;
+    }
+
+    // Generar o recuperar un chunk específico
+    _getOrCreateChunk(chunkX, chunkY) {
+        const key = `${chunkX},${chunkY}`;
+        if (this.chunks.has(key)) {
+            return this.chunks.get(key);
+        }
+
+        // Semilla única para este chunk basada en la semilla global y sus coordenadas
+        const chunkSeed = this.seed + chunkX * 73856093 ^ chunkY * 19349663;
+        let rng = () => {
+            // LCG rápido para objetos del chunk
+            let x = Math.sin(chunkSeed + Math.random()) * 10000;
+            return x - Math.floor(x);
+        };
+
+        const tiles = [];
+        const objects = [];
+
+        for (let y = 0; y < this.chunkSize; y++) {
+            tiles[y] = [];
+            for (let x = 0; x < this.chunkSize; x++) {
+                const worldX = chunkX * this.chunkSize + x;
+                const worldY = chunkY * this.chunkSize + y;
+
+                // Ruida simple para decidir tipo de suelo (Pradera vs Sendero)
+                const noise = Math.sin(worldX * 0.1) * Math.cos(worldY * 0.1);
+                const tileType = noise > 0.4 ? 1 : 0; // 0: Pradera, 1: Sendero
+                tiles[y][x] = tileType;
+
+                // Generación procedural de objetos (Rocas y Árboles) en celdas de pradera
+                if (tileType === 0) {
+                    const objRng = Math.sin(worldX * 12.9898 + worldY * 78.233 + this.seed) * 43758.5453;
+                    const randVal = objRng - Math.floor(objRng);
+
+                    if (randVal < 0.08) {
+                        // 8% de probabilidad de tener una roca o árbol en este tile
+                        const objType = randVal < 0.04 ? 'rock_ore' : 'tree';
+                        objects.push(new GameObject(worldX + 0.5, worldY + 0.5, objType));
+                    }
                 }
+            }
+        }
+
+        const chunkData = { chunkX, chunkY, tiles, objects };
+        this.chunks.set(key, chunkData);
+        return chunkData;
+    }
+
+    // Actualizar chunks cargados según la posición del jugador
+    update(playerX, playerY) {
+        const playerChunkX = Math.floor(playerX / this.chunkSize);
+        const playerChunkY = Math.floor(playerY / this.chunkSize);
+
+        // Generar chunks en el radio de visión
+        for (let y = -this.renderDistance; y <= this.renderDistance; y++) {
+            for (let x = -this.renderDistance; x <= this.renderDistance; x++) {
+                this._getOrCreateChunk(playerChunkX + x, playerChunkY + y);
             }
         }
     }
 
-    // Colisión estricta únicamente en los límites exteriores (evita caer al abismo)
-    isWalkable(x, y) {
-        const gridX = Math.floor(x);
-        const gridY = Math.floor(y);
-
-        if (gridX < 0 || gridX >= this.cols || gridY < 0 || gridY >= this.rows) {
-            return false;
+    // Obtener todos los objetos activos en los chunks cargados (para colisiones y Y-Sorting)
+    getActiveObjects() {
+        let allObjects = [];
+        for (let chunk of this.chunks.values()) {
+            allObjects = allObjects.concat(chunk.objects);
         }
-        return true; // Todo el interior de 32x32 es transitable
+        return allObjects;
     }
 
-    draw(ctx, cameraOffsetX, cameraOffsetY, timestamp = 0) {
-        // Factor de tiempo para la animación suave de la hierba
-        const time = timestamp * 0.003;
+    // Validar si una posición mundial es caminable
+    isWalkable(worldX, worldY) {
+        const chunkX = Math.floor(worldX / this.chunkSize);
+        const chunkY = Math.floor(worldY / this.chunkSize);
+        const key = `${chunkX},${chunkY}`;
 
-        for (let x = 0; x < this.cols; x++) {
-            for (let y = 0; y < this.rows; y++) {
-                const tileType = this.grid[x][y];
-                const screen = Iso.toScreen(x, y);
-                const rx = screen.x + cameraOffsetX;
-                const ry = screen.y + cameraOffsetY;
+        if (!this.chunks.has(key)) return false; // Fuera de chunk cargado
 
-                const halfW = Iso.tileWidth / 2;
-                const halfH = Iso.tileHeight / 2;
+        // Límites absolutos opcionales o del mundo infinito (aquí permitimos libre tránsito en chunks cargados)
+        return true;
+    }
 
-                // 1. Relieve lateral 3D del terreno flotante
-                const depthHeight = 6;
-                ctx.beginPath();
-                ctx.moveTo(rx - halfW, ry);
-                ctx.lineTo(rx, ry + halfH);
-                ctx.lineTo(rx, ry + halfH + depthHeight);
-                ctx.lineTo(rx - halfW, ry + depthHeight);
-                ctx.closePath();
-                ctx.fillStyle = '#1A1814';
-                ctx.fill();
+    // Dibujar todos los chunks visibles
+    draw(ctx, cameraOffsetX, cameraOffsetY, timestamp) {
+        for (let chunk of this.chunks.values()) {
+            for (let y = 0; y < this.chunkSize; y++) {
+                for (let x = 0; x < this.chunkSize; x++) {
+                    const worldX = chunk.chunkX * this.chunkSize + x;
+                    const worldY = chunk.chunkY * this.chunkSize + y;
+                    const tileType = chunk.tiles[y][x];
 
-                ctx.beginPath();
-                ctx.moveTo(rx + halfW, ry);
-                ctx.lineTo(rx, ry + halfH);
-                ctx.lineTo(rx, ry + halfH + depthHeight);
-                ctx.lineTo(rx + halfW, ry + depthHeight);
-                ctx.closePath();
-                ctx.fillStyle = '#26221B';
-                ctx.fill();
+                    const screen = Iso.toScreen(worldX, worldY);
+                    const renderX = screen.x + cameraOffsetX;
+                    const renderY = screen.y + cameraOffsetY;
 
-                // 2. Superficie superior del Tile
-                ctx.beginPath();
-                ctx.moveTo(rx, ry - halfH);
-                ctx.lineTo(rx + halfW, ry);
-                ctx.lineTo(rx, ry + halfH);
-                ctx.lineTo(rx - halfW, ry);
-                ctx.closePath();
+                    // Optimización: Culling básico fuera de pantalla
+                    if (renderX < -Iso.tileWidth || renderX > ctx.canvas.width + Iso.tileWidth ||
+                        renderY < -Iso.tileHeight || renderY > ctx.canvas.height + Iso.tileHeight) {
+                        continue;
+                    }
 
-                if (tileType === 2) {
-                    // Pradera de Pasto
-                    ctx.fillStyle = '#2D4F3C';
+                    // Dibujar baldosa isométrica
+                    ctx.beginPath();
+                    ctx.moveTo(renderX, renderY - Iso.tileHeight / 2);
+                    ctx.lineTo(renderX + Iso.tileWidth / 2, renderY);
+                    ctx.lineTo(renderX, renderY + Iso.tileHeight / 2);
+                    ctx.lineTo(renderX - Iso.tileWidth / 2, renderY);
+                    ctx.closePath();
+
+                    // Color según tipo de terreno procedural
+                    ctx.fillStyle = tileType === 1 ? '#475569' : '#1e293b'; // Sendero gris vs Pradera oscura
                     ctx.fill();
-                    ctx.strokeStyle = '#3E6B52';
-                    ctx.lineWidth = 0.5;
+                    ctx.strokeStyle = '#0f172a';
+                    ctx.lineWidth = 1;
                     ctx.stroke();
-
-                    // Hebras de hierba pequeñas con animación procedural de movimiento
-                    const sway = Math.sin(time + x * 0.5 + y * 0.5) * 1.5;
-                    ctx.fillStyle = '#4EA875';
-
-                    // Hebra 1
-                    ctx.beginPath();
-                    ctx.moveTo(rx - 3, ry);
-                    ctx.lineTo(rx - 3 + sway, ry - 4);
-                    ctx.lineTo(rx - 2 + sway, ry - 4);
-                    ctx.lineTo(rx - 1, ry);
-                    ctx.fill();
-
-                    // Hebra 2
-                    ctx.beginPath();
-                    ctx.moveTo(rx + 2, ry + 1);
-                    ctx.lineTo(rx + 2 + sway * 0.8, ry - 3);
-                    ctx.lineTo(rx + 3 + sway * 0.8, ry - 3);
-                    ctx.lineTo(rx + 4, ry + 1);
-                    ctx.fill();
-
-                } else if (tileType === 3) {
-                    // Sendero de Tierra
-                    ctx.fillStyle = '#4A3B2C';
-                    ctx.fill();
-                    ctx.strokeStyle = '#5E4B37';
-                    ctx.lineWidth = 0.5;
-                    ctx.stroke();
-
-                    // Detalle de textura en el camino
-                    ctx.fillStyle = 'rgba(0, 0, 0, 0.2)';
-                    ctx.beginPath();
-                    ctx.arc(rx, ry, 2, 0, Math.PI * 2);
-                    ctx.fill();
                 }
             }
         }
