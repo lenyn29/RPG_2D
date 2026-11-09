@@ -14,13 +14,12 @@ export class Player {
             this.spriteLoaded = true;
         };
 
-        // Dimensiones de cada frame individual en la hoja de sprites
-        this.frameWidth = 16;  // Ajusta según el ancho real de cada sprite en tu grid
-        this.frameHeight = 24; // Ajusta según el alto real de cada sprite en tu grid
+        // Dimensiones estándar de cada frame en la hoja de sprites
+        this.frameWidth = 16;  
+        this.frameHeight = 24; 
         
         this.animTimer = 0;
         this.currentFrame = 0;
-        this.numFrames = 6;    // Número de frames disponibles por animación en la fila
         this.isMoving = false;
         this.facingDirection = 'down'; // 'down', 'up', 'left', 'right'
     }
@@ -49,10 +48,11 @@ export class Player {
                 this.facingDirection = move.y > 0 ? 'down' : 'up';
             }
 
-            // Control de velocidad de animación de los frames
-            this.animTimer += 0.25;
+            // Control de velocidad de animación
+            this.animTimer += 0.2;
             if (this.animTimer >= 1) {
-                this.currentFrame = (this.currentFrame + 1) % this.numFrames;
+                // Ciclo seguro de 6 frames para el desplazamiento
+                this.currentFrame = (this.currentFrame + 1) % 6;
                 this.animTimer = 0;
             }
         } else {
@@ -77,24 +77,25 @@ export class Player {
         ctx.ellipse(renderX, renderY + 2, Iso.tileWidth / 3.5, Iso.tileHeight / 5, 0, 0, Math.PI * 2);
         ctx.fill();
 
-        // Si la imagen aún no ha cargado, evitamos errores de render
+        // Si la imagen aún no ha cargado, evitamos errores
         if (!this.spriteLoaded) return;
 
         // 2. Selección de Fila en el Sprite Sheet según la dirección
-        // Fila 0: Abajo, Fila 1: Perfil derecho (usada también para izquierda con espejo), Fila 2: Arriba (según orden estándar)
         let row = 0;
         if (this.facingDirection === 'down') row = 0;
-        else if (this.facingDirection === 'up') row = 2;
+        else if (this.facingDirection === 'up') row = 2; // Fila superior/inferior correspondiente
         else if (this.facingDirection === 'right' || this.facingDirection === 'left') row = 1;
 
-        const sx = this.currentFrame * this.frameWidth;
+        // Limitar de forma estricta al número máximo de frames seguros por fila (6)
+        const safeFrame = this.currentFrame % 6;
+
+        const sx = safeFrame * this.frameWidth;
         const sy = row * this.frameHeight;
 
-        // 3. Renderizado con soporte de efecto espejo (Flip Horizontal para la izquierda)
+        // 3. Renderizado con efecto espejo automático para la izquierda
         ctx.save();
 
         if (this.facingDirection === 'left') {
-            // Trasladar al punto del jugador, invertir el eje X y dibujar con offset negativo
             ctx.translate(renderX, renderY);
             ctx.scale(-1, 1);
             ctx.drawImage(
@@ -104,7 +105,6 @@ export class Player {
                 this.frameWidth, this.frameHeight
             );
         } else {
-            // Dibujado normal para Abajo, Arriba y Derecha
             ctx.drawImage(
                 this.sprite,
                 sx, sy, this.frameWidth, this.frameHeight,
