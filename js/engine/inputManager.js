@@ -20,7 +20,6 @@ export class InputManager {
         window.addEventListener('keydown', (e) => this.handleKey(e, true));
         window.addEventListener('keyup', (e) => this.handleKey(e, false));
 
-        // Escuchar directamente en el canvas
         this.canvas.addEventListener('pointerdown', (e) => this.startJoystick(e));
         this.canvas.addEventListener('pointermove', (e) => this.moveJoystick(e));
         this.canvas.addEventListener('pointerup', (e) => this.endJoystick(e));
@@ -45,7 +44,7 @@ export class InputManager {
         const canvasX = clientX - rect.left;
         const canvasY = clientY - rect.top;
 
-        // Restricción: Solo en la mitad inferior izquierda de la pantalla
+        // Zona permitida: Mitad inferior izquierda de la pantalla
         const allowedZoneWidth = this.canvas.width * 0.5;
         const allowedZoneHeightStart = this.canvas.height * 0.4;
 
@@ -53,12 +52,9 @@ export class InputManager {
             this.touchActive = true;
             this.activePointerId = e.pointerId;
             
-            // Capturar el puntero para que no se pierda el evento aunque el dedo salga del canvas
             try {
                 this.canvas.setPointerCapture(e.pointerId);
-            } catch (err) {
-                // Fallback silencioso
-            }
+            } catch (err) {}
 
             this.joystickBase = { x: clientX, y: clientY };
             this.joystickCurrent = { x: clientX, y: clientY };
@@ -73,7 +69,7 @@ export class InputManager {
         const dy = e.clientY - this.joystickBase.y;
         const distance = Math.hypot(dx, dy);
 
-        // Actualizar posición visual del pomo
+        // Limitar la posición visual del pomo
         if (distance > this.maxRadius) {
             this.joystickCurrent.x = this.joystickBase.x + (dx / distance) * this.maxRadius;
             this.joystickCurrent.y = this.joystickBase.y + (dy / distance) * this.maxRadius;
@@ -82,17 +78,20 @@ export class InputManager {
             this.joystickCurrent.y = e.clientY;
         }
 
-        if (distance > 5) { // Zona muerta mínima para evitar ruido
+        if (distance > 4) {
             const intensity = Math.min(distance, this.maxRadius) / this.maxRadius;
             const angle = Math.atan2(dy, dx);
 
-            // Vector de pantalla
-            const screenX = Math.cos(angle) * intensity;
-            const screenY = Math.sin(angle) * intensity;
+            // Dirección normalizada en pantalla (-1 a 1)
+            const dirX = Math.cos(angle) * intensity;
+            const dirY = Math.sin(angle) * intensity;
 
-            // Traducción directa al plano isométrico
-            this.inputVector.x = screenX + screenY;
-            this.inputVector.y = screenY - screenX;
+            // MATRIZ DE CONVERSIÓN ISOMÉTRICA CORRECTA:
+            // En perspectiva isométrica, movernos en diagonal de pantalla mapea los ejes lógicos X e Y.
+            // Escalamos con un factor pequeño para que coincida con la velocidad del jugador.
+            const scale = 0.08;
+            this.inputVector.x = (dirY + dirX * 0.5) * scale * (intensity * 10);
+            this.inputVector.y = (dirY - dirX * 0.5) * scale * (intensity * 10);
         } else {
             this.inputVector = { x: 0, y: 0 };
         }
@@ -104,9 +103,7 @@ export class InputManager {
         if (this.activePointerId !== null) {
             try {
                 this.canvas.releasePointerCapture(this.activePointerId);
-            } catch (err) {
-                // Fallback silencioso
-            }
+            } catch (err) {}
         }
 
         this.touchActive = false;
@@ -118,7 +115,7 @@ export class InputManager {
         let moveX = 0;
         let moveY = 0;
 
-        // Lectura de teclado
+        // Teclado
         if (this.keys.w) { moveX -= 1; moveY -= 1; }
         if (this.keys.s) { moveX += 1; moveY += 1; }
         if (this.keys.a) { moveX -= 1; moveY += 1; }
@@ -126,11 +123,11 @@ export class InputManager {
 
         if (moveX !== 0 || moveY !== 0) {
             const length = Math.hypot(moveX, moveY);
-            moveX /= length;
-            moveY /= length;
+            moveX = (moveX / length) * 0.05; // Velocidad estándar de teclado
+            moveY = (moveY / length) * 0.05;
         }
 
-        // Override por Joystick Táctil
+        // Joystick Táctil (Tiene prioridad si está activo)
         if (this.touchActive && (this.inputVector.x !== 0 || this.inputVector.y !== 0)) {
             moveX = this.inputVector.x;
             moveY = this.inputVector.y;
@@ -141,15 +138,13 @@ export class InputManager {
 
     draw(ctx) {
         if (this.touchActive) {
-            // Dibujar Base
-            ctx.strokeStyle = 'rgba(0, 240, 255, 0.35)';
+            ctx.strokeStyle = 'rgba(0, 240, 255, 0.4)';
             ctx.lineWidth = 3;
             ctx.beginPath();
             ctx.arc(this.joystickBase.x, this.joystickBase.y, this.maxRadius, 0, Math.PI * 2);
             ctx.stroke();
 
-            // Dibujar Pomo
-            ctx.fillStyle = 'rgba(0, 240, 255, 0.75)';
+            ctx.fillStyle = 'rgba(0, 240, 255, 0.8)';
             ctx.beginPath();
             ctx.arc(this.joystickCurrent.x, this.joystickCurrent.y, 22, 0, Math.PI * 2);
             ctx.fill();
