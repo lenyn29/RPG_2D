@@ -1,6 +1,7 @@
 import { Player } from '../entities/player.js';
 import { Iso } from './isometric.js';
 import { InputManager } from './inputManager.js';
+import { MapManager } from './mapManager.js';
 
 class GameEngine {
     constructor() {
@@ -10,8 +11,9 @@ class GameEngine {
         this.resizeCanvas();
         window.addEventListener('resize', () => this.resizeCanvas());
 
-        // Inicializar Gestor de Controles y Entidades
+        // Inicializar Gestor de Controles, Mapa y Entidades
         this.inputManager = new InputManager(this.canvas);
+        this.mapManager = new MapManager();
         this.player = new Player(2.5, 2.5);
         
         this.lastTime = performance.now();
@@ -34,29 +36,13 @@ class GameEngine {
         const cameraOffsetX = this.canvas.width / 2;
         const cameraOffsetY = this.canvas.height / 3;
 
-        // Renderizar mini grilla isométrica (5x5)
-        for (let x = 0; x < 5; x++) {
-            for (let y = 0; y < 5; y++) {
-                const screen = Iso.toScreen(x, y);
-                const rx = screen.x + cameraOffsetX;
-                const ry = screen.y + cameraOffsetY;
+        // 1. Renderizar el Mapa Isométrico (Capa de Suelo)
+        this.mapManager.draw(this.ctx, cameraOffsetX, cameraOffsetY);
 
-                this.ctx.strokeStyle = '#2A344A';
-                this.ctx.lineWidth = 1;
-                this.ctx.beginPath();
-                this.ctx.moveTo(rx, ry - Iso.tileHeight / 2);
-                this.ctx.lineTo(rx + Iso.tileWidth / 2, ry);
-                this.ctx.lineTo(rx, ry + Iso.tileHeight / 2);
-                this.ctx.lineTo(rx - Iso.tileWidth / 2, ry);
-                this.ctx.closePath();
-                this.ctx.stroke();
-            }
-        }
-
-        // Renderizar Jugador
+        // 2. Renderizar al Jugador (Entidades)
         this.player.draw(this.ctx, cameraOffsetX, cameraOffsetY);
 
-        // Renderizar Controles Táctiles (UI superpuesta)
+        // 3. Renderizar la Interfaz Táctil (Joystick UI superpuesta)
         this.inputManager.draw(this.ctx);
     }
 
