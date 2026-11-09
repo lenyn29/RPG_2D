@@ -10,9 +10,7 @@ export class Player {
         this.sprite = new Image();
         this.sprite.src = 'assets/player.png';
         this.spriteLoaded = false;
-        this.sprite.onload = () => {
-            this.spriteLoaded = true;
-        };
+        this.sprite.onload = () => { this.spriteLoaded = true; };
 
         this.frameWidth = 48;  
         this.frameHeight = 48; 
@@ -23,18 +21,22 @@ export class Player {
         this.facing = 'down'; 
         this.state = 'idle';  
 
-        // Sistema de Combate: 10 HP y 1 de daño
+        // Nombre, Nivel y Estadísticas (10 HP)
+        this.name = "Doruk lv 1";
         this.maxHp = 10;
         this.hp = 10;
+        
         this.isHurt = false;
         this.hurtTimer = 0;
-        this.invincibleFrames = 0; // Previene bloqueo o congelamiento por golpes seguidos
+        this.invincibleFrames = 0;
         this.knockbackAngle = 0;
         this.isAttacking = false;
         this.attackCooldown = 0;
+        this.deathTimer = 0; // Temporizador para reiniciar tras morir
     }
 
     canMoveTo(newX, newY, mapManager, objects = [], enemies = []) {
+        if (this.state === 'dead') return false;
         if (mapManager && typeof mapManager.isWalkable === 'function') {
             if (!mapManager.isWalkable(newX, newY)) return false;
         }
@@ -63,7 +65,7 @@ export class Player {
         
         this.isHurt = true;
         this.hurtTimer = 20;
-        this.invincibleFrames = 40; // Inmunidad temporal para evitar congelamiento
+        this.invincibleFrames = 40;
         this.knockbackAngle = Math.atan2(this.y - attackerY, this.x - attackerX);
     }
 
@@ -78,7 +80,22 @@ export class Player {
     }
 
     update(inputManager, mapManager, objects = [], enemies = []) {
-        if (this.state === 'dead') return;
+        if (this.state === 'dead') {
+            // Animación de muerte dramática y lenta (0.05 por frame)
+            this.animTimer += 0.06;
+            if (this.animTimer >= 1) {
+                this.currentFrame++;
+                if (this.currentFrame >= 5) {
+                    this.currentFrame = 4; // Quedarse en el último frame
+                    this.deathTimer++;
+                    if (this.deathTimer > 120) { // Reiniciar juego tras 2 segundos de inercia
+                        window.location.reload();
+                    }
+                }
+                this.animTimer = 0;
+            }
+            return;
+        }
 
         if (this.attackCooldown > 0) this.attackCooldown--;
         if (this.invincibleFrames > 0) this.invincibleFrames--;
@@ -103,10 +120,10 @@ export class Player {
         }
 
         if (this.isAttacking) {
-            this.animTimer += 0.25;
+            this.animTimer += 0.2;
             if (this.animTimer >= 1) {
                 this.currentFrame++;
-                if (this.currentFrame >= 4) { // 4 frames de ataque exactos
+                if (this.currentFrame >= 4) {
                     this.isAttacking = false;
                     this.state = 'idle';
                     this.currentFrame = 0;
@@ -132,12 +149,8 @@ export class Player {
             const mX = worldLen > 0 ? (targetDx / worldLen) * this.speed : 0;
             const mY = worldLen > 0 ? (targetDy / worldLen) * this.speed : 0;
 
-            if (this.canMoveTo(this.x + mX, this.y, mapManager, objects, enemies)) {
-                this.x += mX;
-            }
-            if (this.canMoveTo(this.x, this.y + mY, mapManager, objects, enemies)) {
-                this.y += mY;
-            }
+            if (this.canMoveTo(this.x + mX, this.y, mapManager, objects, enemies)) this.x += mX;
+            if (this.canMoveTo(this.x, this.y + mY, mapManager, objects, enemies)) this.y += mY;
 
             let angle = Math.atan2(move.x, -move.y) * (180 / Math.PI);
             if (angle < 0) angle += 360;
@@ -172,8 +185,7 @@ export class Player {
         ctx.ellipse(renderX, renderY + 2, Iso.tileWidth / 2.8, Iso.tileHeight / 3.8, 0, 0, Math.PI * 2);
         ctx.fill();
 
-        // Parpadeo suave al recibir daño o invulnerabilidad
-        if (this.invincibleFrames > 0 && Math.floor(this.invincibleFrames / 3) % 2 === 0) {
+        if (this.invincibleFrames > 0 && Math.floor(this.invincibleFrames / 3) % 2 === 0 && this.state !== 'dead') {
             return; 
         }
 
@@ -197,7 +209,7 @@ export class Player {
                 if (this.facing === 'down') row = 6;
                 else if (this.facing === 'right' || this.facing === 'left') row = 7;
                 else if (this.facing === 'up') row = 8;
-                maxFrames = 4; // 4 frames de ataque exactos
+                maxFrames = 4;
             }
 
             const safeFrame = this.currentFrame % maxFrames;
@@ -223,18 +235,23 @@ export class Player {
             ctx.fill();
         }
 
-        // Barra de Vida miniatura sobre el Héroe
-        this.drawHealthBar(ctx, renderX, renderY - 45);
+        // Nombre y Barra de Vida del Héroe
+        this.drawInfoBox(ctx, renderX, renderY - 55);
     }
 
-    drawHealthBar(ctx, x, y) {
-        const barWidth = 40;
+    drawInfoBox(ctx, x, y) {
+        ctx.fillStyle = '#FFFFFF';
+        ctx.font = 'bold 11px sans-serif';
+        ctx.textAlign = 'center';
+        ctx.fillText(this.name, x, y);
+
+        const barWidth = 42;
         const barHeight = 5;
         ctx.fillStyle = 'rgba(0, 0, 0, 0.6)';
-        ctx.fillRect(x - barWidth / 2, y, barWidth, barHeight);
+        ctx.fillRect(x - barWidth / 2, y + 3, barWidth, barHeight);
 
         const hpRatio = Math.max(0, this.hp / this.maxHp);
-        ctx.fillStyle = '#22c55e'; // Verde vida
-        ctx.fillRect(x - barWidth / 2, y, barWidth * hpRatio, barHeight);
+        ctx.fillStyle = '#22c55e';
+        ctx.fillRect(x - barWidth / 2, y + 3, barWidth * hpRatio, barHeight);
     }
 }
