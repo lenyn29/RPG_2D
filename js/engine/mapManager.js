@@ -97,7 +97,7 @@ export class MapManager {
                         continue;
                     }
 
-                    // 1. Dibujar el cuerpo del tile SIN líneas de borde (suelo continuo)
+                    // 1. Renderizado de terreno continuo (Sin líneas divisorias)
                     ctx.beginPath();
                     ctx.moveTo(renderX, renderY - Iso.tileHeight / 2);
                     ctx.lineTo(renderX + Iso.tileWidth / 2, renderY);
@@ -105,27 +105,25 @@ export class MapManager {
                     ctx.lineTo(renderX - Iso.tileWidth / 2, renderY);
                     ctx.closePath();
 
-                    // Colores de pradera orgánica vs sendero de tierra
-                    ctx.fillStyle = tileType === 1 ? '#334155' : '#0f291e'; 
+                    // Color pasto bosque vs tierra húmeda
+                    ctx.fillStyle = tileType === 1 ? '#3d2e1e' : '#1a472a'; 
                     ctx.fill();
 
-                    // 2. Si es pradera (tileType === 0), añadimos mechones de hierba con animación de viento
+                    // 2. Animación suave de hierba sobre la pradera
                     if (tileType === 0) {
                         const grassSeed = worldX * 33.3 + worldY * 77.7;
                         const windSpeed = 0.003;
                         const grassSway = Math.sin(timestamp * windSpeed + grassSeed) * 2.5;
 
-                        ctx.strokeStyle = '#10b981'; // Color verde hierba brillante
+                        ctx.strokeStyle = '#2d6a4f'; // Verde hoja para la hierba
                         ctx.lineWidth = 1.2;
                         ctx.lineCap = 'round';
 
-                        // Mechón izquierdo de hierba
                         ctx.beginPath();
                         ctx.moveTo(renderX - 6, renderY);
                         ctx.quadraticCurveTo(renderX - 6 + grassSway, renderY - 6, renderX - 4 + grassSway, renderY - 9);
                         ctx.stroke();
 
-                        // Mechón derecho de hierba
                         ctx.beginPath();
                         ctx.moveTo(renderX + 4, renderY + 2);
                         ctx.quadraticCurveTo(renderX + 4 + grassSway, renderY - 4, renderX + 6 + grassSway, renderY - 7);
