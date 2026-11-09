@@ -5,17 +5,13 @@ export class Player {
         this.x = startX; 
         this.y = startY; 
         this.speed = 0.055; 
-        this.radius = 0.35; 
+        this.radius = 0.35; // Radio de colisión físico sólido
         
         this.sprite = new Image();
         this.sprite.src = 'assets/player.png';
         this.spriteLoaded = false;
         this.sprite.onload = () => {
             this.spriteLoaded = true;
-        };
-        this.sprite.onerror = () => {
-            // Si la imagen falla o no existe, permitimos renderizar un respaldo geométrico para que no crashee
-            this.spriteLoaded = false;
         };
 
         this.frameWidth = 48;  
@@ -26,27 +22,75 @@ export class Player {
         this.currentFrame = 0;
         this.facing = 'down'; 
         this.state = 'idle';  
+
+        // Variables de combate y daño
+        this.isHurt = false;
+        this.hurtTimer = 0;
+        this.knockbackAngle = 0;
     }
 
-    canMoveTo(newX, newY, mapManager, objects = []) {
+    // Comprobación de colisión contra mapa, objetos y enemigos
+    canMoveTo(newX, newY, mapManager, objects = [], enemies = []) {
         if (mapManager && typeof mapManager.isWalkable === 'function') {
             if (!mapManager.isWalkable(newX, newY)) return false;
         }
 
+        // Colisión con objetos (rocas, árboles)
         if (objects && Array.isArray(objects)) {
             for (let obj of objects) {
                 const dx = newX - obj.x;
                 const dy = newY - obj.y;
-                const dist = Math.sqrt(dx * dx + dy * dy);
-                if (dist < (this.radius + obj.radius)) {
+                if (Math.sqrt(dx * dx + dy * dy) < (this.radius + obj.radius)) {
                     return false;
                 }
             }
         }
+
+        // Colisión con enemigos vivos
+        if (enemies && Array.isArray(enemies)) {
+            for (let enemy of enemies) {
+                if (enemy.state === 'dead') continue;
+                const dx = newX - enemy.x;
+                const dy = newY - enemy.y;
+                if (Math.sqrt(dx * dx + dy * dy) < (this.radius + enemy.radius)) {
+                    return false;
+                }
+            }
+        }
+
         return true;
     }
 
-    update(inputManager, mapManager, objects = []) {
+    // Método para recibir daño del enemigo y activar retroceso
+    takeDamage(attackerX, attackerY) {
+        if (this.isHurt) return; // Invulnerabilidad temporal mientras es golpeado
+        this.isHurt = true;
+        this.hurtTimer = 25; // Duración del estado de daño en frames
+        this.knockbackAngle = Math.atan2(this.y - attackerY, this.x - attackerX);
+    }
+
+    update(inputManager, mapManager, objects = [], enemies = []) {
+        let moveX = 0;
+        let moveY = 0;
+
+        // Si está recibiendo daño, se aplica el retroceso automáticamente
+        if (this.isHurt) {
+            const kbSpeed = 0.04;
+            const nextX = this.x + Math.cos(this.knockbackAngle) * kbSpeed;
+            const nextY = this.y + Math.sin(this.knockbackAngle) * kbSpeed;
+
+            if (this.canMoveTo(nextX, nextY, mapManager, objects, enemies)) {
+                this.x = nextX;
+                this.y = nextY;
+            }
+
+            this.hurtTimer--;
+            if (this.hurtTimer <= 0) {
+                this.isHurt = false;
+            }
+            return; // Bloquea el movimiento del joystick durante el retroceso
+        }
+
         const move = inputManager.getMovementVector();
 
         if (move.x !== 0 || move.y !== 0) {
@@ -60,14 +104,15 @@ export class Player {
             const targetDy = joyY - joyX;
 
             const worldLen = Math.sqrt(targetDx * targetDx + targetDy * targetDy);
-            const moveX = worldLen > 0 ? (targetDx / worldLen) * this.speed : 0;
-            const moveY = worldLen > 0 ? (targetDy / worldLen) * this.speed : 0;
+            const mX = worldLen > 0 ? (targetDx / worldLen) * this.speed : 0;
+            const mY = worldLen > 0 ? (targetDy / worldLen) * this.speed : 0;
 
-            if (this.canMoveTo(this.x + moveX, this.y, mapManager, objects)) {
-                this.x += moveX;
+            // Movimiento independiente en X e Y con colisión total
+            if (this.canMoveTo(this.x + mX, this.y, mapManager, objects, enemies)) {
+                this.x += mX;
             }
-            if (this.canMoveTo(this.x, this.y + moveY, mapManager, objects)) {
-                this.y += moveY;
+            if (this.canMoveTo(this.x, this.y + mY, mapManager, objects, enemies)) {
+                this.y += mY;
             }
 
             let angle = Math.atan2(move.x, -move.y) * (180 / Math.PI);
@@ -108,21 +153,29 @@ export class Player {
         ctx.ellipse(renderX, renderY + 2, Iso.tileWidth / 2.8, Iso.tileHeight / 3.8, 0, 0, Math.PI * 2);
         ctx.fill();
 
+        // Efecto de parpadeo visual (Flicker) cuando recibe daño
+        if (this.isHurt && Math.floor(this.hurtTimer / 3) % 2 === 0) {
+            return; // Salta un frame de dibujo para simular parpadeo de daño
+        }
+
         if (this.spriteLoaded && this.sprite.complete) {
             let row = 0;
             const maxFrames = 6;
 
-            if (this.state === 'idle') {
+            // Si está dañado, usa la animación de idle (como se solicitó)
+            const currentState = this.isHurt ? 'idle' : this.state;
+
+            if (currentState === 'idle') {
                 if (this.facing === 'down') row = 0;
                 else if (this.facing === 'right' || this.facing === 'left') row = 1;
                 else if (this.facing === 'up') row = 2;
-            } else if (this.state === 'walk') {
+            } else if (currentState === 'walk') {
                 if (this.facing === 'down') row = 3;
                 else if (this.facing === 'right' || this.facing === 'left') row = 4;
                 else if (this.facing === 'up') row = 5;
             }
 
-            const safeFrame = this.currentFrame % maxFrames;
+            const safeFrame = this.currentFrame % (currentState === 'idle' ? 4 : 6);
             const sx = safeFrame * this.frameWidth;
             const sy = row * this.frameHeight;
 
@@ -149,14 +202,10 @@ export class Player {
             }
             ctx.restore();
         } else {
-            // Respaldo temporal si el sprite carga tarde: un círculo brillante para ubicar al héroe
             ctx.fillStyle = '#00F0FF';
             ctx.beginPath();
             ctx.arc(renderX, renderY - 15, 12, 0, Math.PI * 2);
             ctx.fill();
-            ctx.strokeStyle = '#FFFFFF';
-            ctx.lineWidth = 2;
-            ctx.stroke();
         }
     }
 }
