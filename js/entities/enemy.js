@@ -2,12 +2,12 @@ import { Iso } from '../engine/isometric.js';
 
 export class Enemy {
     constructor(startX, startY, type = 'slime', level = 1) {
-        this.spawnX = startX; // Posición fija de respawn original
+        this.spawnX = startX; 
         this.spawnY = startY;
         this.x = startX;
         this.y = startY;
         this.type = type;
-        this.level = level; // Nivel del enemigo (ej. Slime lv 2)
+        this.level = level; 
         this.speed = 0.018; 
         this.radius = 0.35; 
         
@@ -24,12 +24,12 @@ export class Enemy {
         this.maxHp = 10;
         this.hp = 10;
         this.respawnTimer = 0; 
-        this.fadeTimer = 0; // Temporizador para desvanecer el cuerpo (3s)
+        this.fadeTimer = 0; 
 
         this.animTimer = 0;
         this.currentFrame = 0;
         this.facing = 'down'; 
-        this.state = 'idle';  // 'idle', 'walk', 'attack', 'hurt', 'flee', 'dead'
+        this.state = 'idle';  
         
         this.changeDirTimer = 0;
         this.moveAngle = Math.random() * Math.PI * 2;
@@ -69,7 +69,7 @@ export class Enemy {
                 this.currentFrame++;
                 if (this.currentFrame >= 5) {
                     this.currentFrame = 4;
-                    if (this.fadeTimer < 180) this.fadeTimer++; // Desvanecer cuerpo a los 3s
+                    if (this.fadeTimer < 180) this.fadeTimer++;
                 }
                 this.animTimer = 0;
             }
@@ -88,17 +88,13 @@ export class Enemy {
             targetDist = Math.sqrt(pdx * pdx + pdy * pdy);
         }
 
-        // --- PERSONALIDAD E INTELIGENCIA ARTIFICIAL ---
-        // 1. Instinto de huida si la vida baja del 50%
         if (this.hp < (this.maxHp / 2)) {
             this.state = 'flee';
         }
 
-        // 2. Si el héroe tiene mayor nivel, el slime lo ignora por completo
         const playerIsHigherLevel = player && (player.level > this.level);
 
         if (this.state === 'flee' && player) {
-            // Huir en dirección contraria al jugador
             const fleeAngle = Math.atan2(this.y - player.y, this.x - player.x);
             const nextX = this.x + Math.cos(fleeAngle) * (this.speed * 1.2);
             const nextY = this.y + Math.sin(fleeAngle) * (this.speed * 1.2);
@@ -126,13 +122,11 @@ export class Enemy {
                 this.y = nextY;
             }
         } else if (player && player.state !== 'dead' && !playerIsHigherLevel && targetDist < 0.9 && this.attackCooldown === 0) {
-            // Solo ataca si está DEMASIADO CERCA (distancia < 0.9) y el héroe no es de mayor nivel
             this.state = 'attack';
             this.currentFrame = 0;
             this.animTimer = 0;
             this.attackCooldown = 90;
         } else if (player && player.state !== 'dead' && !playerIsHigherLevel && targetDist < 3.5) {
-            // Persigue solo si estás cerca y tienes nivel igual o menor
             this.state = 'walk';
             const angleToPlayer = Math.atan2(pdy, pdx);
             const nextX = this.x + Math.cos(angleToPlayer) * this.speed;
@@ -144,7 +138,6 @@ export class Enemy {
             }
             this.updateFacing(angleToPlayer);
         } else {
-            // Patrulla errante normal
             this.changeDirTimer += 0.02;
             if (this.changeDirTimer > 3) {
                 this.moveAngle = Math.random() * Math.PI * 2;
@@ -202,7 +195,6 @@ export class Enemy {
 
         const isFadedOut = (this.state === 'dead' && this.fadeTimer >= 180);
 
-        // Charco de sangre al morir
         if (this.state === 'dead') {
             ctx.fillStyle = 'rgba(185, 28, 28, 0.7)';
             ctx.beginPath();
@@ -264,7 +256,7 @@ export class Enemy {
         }
 
         if (this.state !== 'dead') {
-            this.drawInfoBox(ctx, renderX, renderY - 45);
+            this.drawInfoBox(ctx, renderX, renderY - 48); // Margen superior adecuado
         }
     }
 
@@ -276,11 +268,13 @@ export class Enemy {
 
         const barWidth = 32;
         const barHeight = 4;
+        const barY = y + 5; // Margen de separación limpio
+
         ctx.fillStyle = 'rgba(0, 0, 0, 0.6)';
-        ctx.fillRect(x - barWidth / 2, y + 3, barWidth, barHeight);
+        ctx.fillRect(x - barWidth / 2, barY, barWidth, barHeight);
 
         const hpRatio = Math.max(0, this.hp / this.maxHp);
         ctx.fillStyle = '#ef4444';
-        ctx.fillRect(x - barWidth / 2, y + 3, barWidth * hpRatio, barHeight);
+        ctx.fillRect(x - barWidth / 2, barY, barWidth * hpRatio, barHeight);
     }
 }
