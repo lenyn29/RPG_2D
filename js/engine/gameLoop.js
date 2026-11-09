@@ -1,5 +1,6 @@
 import { Player } from '../entities/player.js';
 import { Iso } from './isometric.js';
+import { InputManager } from './inputManager.js';
 
 class GameEngine {
     constructor() {
@@ -9,12 +10,11 @@ class GameEngine {
         this.resizeCanvas();
         window.addEventListener('resize', () => this.resizeCanvas());
 
-        this.player = new Player(5, 5);
+        // Inicializar Gestor de Controles y Entidades
+        this.inputManager = new InputManager(this.canvas);
+        this.player = new Player(2.5, 2.5);
         
-        // Último tiempo para cálculo de Delta Time
         this.lastTime = performance.now();
-        
-        // Iniciar bucle
         this.loop = this.loop.bind(this);
         requestAnimationFrame(this.loop);
     }
@@ -25,18 +25,16 @@ class GameEngine {
     }
 
     update(dt) {
-        this.player.update();
+        this.player.update(this.inputManager);
     }
 
     render() {
-        // Limpiar pantalla
         this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
 
-        // Centrar la cámara en la pantalla
         const cameraOffsetX = this.canvas.width / 2;
-        const cameraOffsetY = this.canvas.height / 4;
+        const cameraOffsetY = this.canvas.height / 3;
 
-        // Dibujar una mini grilla isométrica de prueba (5x5)
+        // Renderizar mini grilla isométrica (5x5)
         for (let x = 0; x < 5; x++) {
             for (let y = 0; y < 5; y++) {
                 const screen = Iso.toScreen(x, y);
@@ -55,8 +53,11 @@ class GameEngine {
             }
         }
 
-        // Renderizar al jugador ordenado por profundidad
+        // Renderizar Jugador
         this.player.draw(this.ctx, cameraOffsetX, cameraOffsetY);
+
+        // Renderizar Controles Táctiles (UI superpuesta)
+        this.inputManager.draw(this.ctx);
     }
 
     loop(timestamp) {
@@ -70,7 +71,6 @@ class GameEngine {
     }
 }
 
-// Arrancar el motor al cargar la ventana
 window.onload = () => {
     new GameEngine();
 };
