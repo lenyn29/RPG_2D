@@ -9,56 +9,87 @@ export class InputManager {
         this.currY = 0;
         this.maxRadius = 50;
 
+        // Estado del botón de ataque
+        this.attackPressed = false;
+        this.attackButton = {
+            x: window.innerWidth - 80,
+            y: window.innerHeight - 100,
+            radius: 35
+        };
+        this.attackTouchId = null;
+
         this.setupListeners();
     }
 
     setupListeners() {
+        window.addEventListener('resize', () => {
+            this.attackButton.x = window.innerWidth - 80;
+            this.attackButton.y = window.innerHeight - 100;
+        });
+
         window.addEventListener('touchstart', (e) => {
-            if (!this.touchActive) {
-                for (let i = 0; i < e.changedTouches.length; i++) {
-                    const touch = e.changedTouches[i];
-                    // Restringir estrictamente la aparición del joystick a la mitad izquierda de la pantalla
-                    if (touch.clientX < window.innerWidth / 2) {
-                        this.touchId = touch.identifier;
-                        this.baseX = touch.clientX;
-                        this.baseY = touch.clientY;
-                        this.currX = touch.clientX;
-                        this.currY = touch.clientY;
-                        this.touchActive = true;
-                        break;
-                    }
+            for (let i = 0; i < e.changedTouches.length; i++) {
+                const touch = e.changedTouches[i];
+
+                // 1. Verificar si toca el botón de ataque (Mitad derecha / Zona inferior derecha)
+                const adx = touch.clientX - this.attackButton.x;
+                const ady = touch.clientY - this.attackButton.y;
+                if (Math.sqrt(adx * adx + ady * ady) <= this.attackButton.radius + 15) {
+                    this.attackTouchId = touch.identifier;
+                    this.attackPressed = true;
+                    continue;
+                }
+
+                // 2. Joystick en la mitad izquierda de la pantalla
+                if (!this.touchActive && touch.clientX < window.innerWidth / 2) {
+                    this.touchId = touch.identifier;
+                    this.baseX = touch.clientX;
+                    this.baseY = touch.clientY;
+                    this.currX = touch.clientX;
+                    this.currY = touch.clientY;
+                    this.touchActive = true;
                 }
             }
         }, { passive: false });
 
         window.addEventListener('touchmove', (e) => {
-            if (!this.touchActive) return;
             for (let i = 0; i < e.changedTouches.length; i++) {
                 const touch = e.changedTouches[i];
                 if (touch.identifier === this.touchId) {
                     this.currX = touch.clientX;
                     this.currY = touch.clientY;
-                    break;
                 }
             }
             e.preventDefault();
         }, { passive: false });
 
         const endHandler = (e) => {
-            if (!this.touchActive) return;
             for (let i = 0; i < e.changedTouches.length; i++) {
-                if (e.changedTouches[i].identifier === this.touchId) {
+                const touch = e.changedTouches[i];
+                if (touch.identifier === this.touchId) {
                     this.touchActive = false;
                     this.touchId = null;
                     this.currX = this.baseX;
                     this.currY = this.baseY;
-                    break;
+                }
+                if (touch.identifier === this.attackTouchId) {
+                    this.attackTouchId = null;
+                    this.attackPressed = false;
                 }
             }
         };
 
         window.addEventListener('touchend', endHandler);
         window.addEventListener('touchcancel', endHandler);
+    }
+
+    // Devuelve true una sola vez por pulsación de ataque
+    isAttackTriggered() {
+        if (this.attackPressed) {
+            this.attackPressed = false; // Consumir el evento
+            return true;
+        }
+        return false;
     }
 
     getMovementVector() {
@@ -78,22 +109,39 @@ export class InputManager {
     }
 
     draw(ctx) {
-        if (!this.touchActive) return;
+        // 1. Dibujar Joystick Izquierdo
+        if (this.touchActive) {
+            ctx.beginPath();
+            ctx.arc(this.baseX, this.baseY, this.maxRadius, 0, Math.PI * 2);
+            ctx.fillStyle = 'rgba(255, 255, 255, 0.15)';
+            ctx.fill();
+            ctx.strokeStyle = 'rgba(255, 255, 255, 0.3)';
+            ctx.lineWidth = 2;
+            ctx.stroke();
 
+            ctx.beginPath();
+            ctx.arc(this.currX, this.currY, 22, 0, Math.PI * 2);
+            ctx.fillStyle = 'rgba(0, 240, 255, 0.5)';
+            ctx.fill();
+            ctx.strokeStyle = '#00F0FF';
+            ctx.lineWidth = 2;
+            ctx.stroke();
+        }
+
+        // 2. Dibujar Botón de Ataque Derecho (Fijo en UI)
         ctx.beginPath();
-        ctx.arc(this.baseX, this.baseY, this.maxRadius, 0, Math.PI * 2);
-        ctx.fillStyle = 'rgba(255, 255, 255, 0.15)';
+        ctx.arc(this.attackButton.x, this.attackButton.y, this.attackButton.radius, 0, Math.PI * 2);
+        ctx.fillStyle = this.attackTouchId !== null ? 'rgba(239, 68, 68, 0.7)' : 'rgba(239, 68, 68, 0.35)';
         ctx.fill();
-        ctx.strokeStyle = 'rgba(255, 255, 255, 0.3)';
-        ctx.lineWidth = 2;
+        ctx.strokeStyle = '#EF4444'; // Rojo combate
+        ctx.lineWidth = 3;
         ctx.stroke();
 
-        ctx.beginPath();
-        ctx.arc(this.currX, this.currY, 22, 0, Math.PI * 2);
-        ctx.fillStyle = 'rgba(0, 240, 255, 0.5)';
-        ctx.fill();
-        ctx.strokeStyle = '#00F0FF';
-        ctx.lineWidth = 2;
-        ctx.stroke();
+        // Icono o texto dentro del botón de ataque
+        ctx.fillStyle = '#FFFFFF';
+        ctx.font = 'bold 14px sans-serif';
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillText('⚔️', this.attackButton.x, this.attackButton.y);
     }
 }
