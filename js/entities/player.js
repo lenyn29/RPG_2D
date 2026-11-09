@@ -32,22 +32,25 @@ export class Player {
         if (move.x !== 0 || move.y !== 0) {
             this.state = 'walk';
             
-            // 1. Normalizar el vector del joystick para evitar exceso de velocidad en diagonales de pantalla
+            // 1. Normalizar el vector del joystick en el espacio de la pantalla
             const joyLen = Math.sqrt(move.x * move.x + move.y * move.y);
             const joyX = joyLen > 0 ? move.x / joyLen : 0;
             const joyY = joyLen > 0 ? move.y / joyLen : 0;
 
-            // 2. Transformación de Pantalla (Joystick) a Mundo Isométrico (Screen-to-World Matrix)
-            // Esto asegura que Arriba en el joystick mueva al personaje hacia arriba en la pantalla.
-            const rawDx = joyX + joyY;
-            const rawDy = -joyX + joyY;
+            // 2. Transformación inversa exacta de Pantalla a Mundo Isométrico
+            // Esto garantiza que el movimiento en el mundo refleje la dirección visual de la pantalla.
+            const halfW = Iso.tileWidth / 2;
+            const halfH = Iso.tileHeight / 2;
 
-            // 3. Normalización final del movimiento en el mundo para garantizar velocidad constante
+            const rawDx = 0.5 * (joyX / halfW + joyY / halfH);
+            const rawDy = 0.5 * (joyY / halfH - joyX / halfW);
+
+            // 3. Normalizar la velocidad resultante en el mundo para que sea totalmente uniforme
             const worldLen = Math.sqrt(rawDx * rawDx + rawDy * rawDy);
             const dirX = worldLen > 0 ? (rawDx / worldLen) * this.speed : 0;
             const dirY = worldLen > 0 ? (rawDy / worldLen) * this.speed : 0;
 
-            // 4. Movimiento independiente en X e Y con colisión estricta en el mapa
+            // 4. Movimiento independiente en X e Y con colisión en el mapa
             const nextX = this.x + dirX;
             if (mapManager ? mapManager.isWalkable(nextX, this.y) : true) {
                 this.x = nextX;
@@ -58,7 +61,7 @@ export class Player {
                 this.y = nextY;
             }
 
-            // 5. Mapeo angular exacto basado en el joystick (Arriba = 0°, Derecha = 90°, Abajo = 180°, Izquierda = 270°)
+            // 5. Mapeo angular exacto basado en la pantalla (Arriba = 0°, Derecha = 90°, Abajo = 180°, Izquierda = 270°)
             // - Arriba (0°): Rango de 60° (330° a 30°)
             // - Derecha (90°): Rango de 120° (30° a 150°)
             // - Abajo (180°): Rango de 60° (150° a 210°)
