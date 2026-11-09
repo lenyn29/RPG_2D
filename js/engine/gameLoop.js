@@ -1,5 +1,6 @@
 import { Player } from '../entities/player.js';
 import { Enemy } from '../entities/enemy.js';
+import { CombatSystem } from './combatSystem.js';
 import { Iso } from './isometric.js';
 import { InputManager } from './inputManager.js';
 import { MapManager } from './mapManager.js';
@@ -15,9 +16,10 @@ class GameEngine {
 
         this.inputManager = new InputManager(this.canvas);
         this.mapManager = new MapManager(12345);
+        this.combatSystem = new CombatSystem();
+
         this.player = new Player(8.0, 8.0); 
         
-        // Spawn de Slimes enemigos cerca del jugador
         this.enemies = [
             new Enemy(10.0, 8.0, 'slime'),
             new Enemy(6.0, 10.0, 'slime')
@@ -40,10 +42,14 @@ class GameEngine {
             this.mapManager.update(this.player.x, this.player.y);
             const activeObjects = this.mapManager.getActiveObjects() || [];
             
-            // Actualizar jugador pasando los objetos y los enemigos para colisión sólida
+            // 1. Procesar Combate (Ataques del jugador y enemigos)
+            this.combatSystem.processPlayerAttack(this.player, this.enemies);
+            this.combatSystem.processEnemyAttacks(this.player, this.enemies, this.mapManager, activeObjects);
+            this.combatSystem.updateRespawns(this.enemies, this.mapManager);
+
+            // 2. Actualizar Entidades
             this.player.update(this.inputManager, this.mapManager, activeObjects, this.enemies);
 
-            // Actualizar enemigos pasando el jugador para IA, ataques y colisión
             this.enemies.forEach(enemy => {
                 enemy.update(this.mapManager, activeObjects, this.player);
             });
@@ -51,6 +57,7 @@ class GameEngine {
             console.error("Error en update:", e);
         }
     }
+
     render(timestamp) {
         try {
             this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
@@ -59,27 +66,23 @@ class GameEngine {
             let cameraOffsetX = (this.canvas.width / 2) - playerScreen.x;
             let cameraOffsetY = (this.canvas.height / 2) - playerScreen.y;
 
-            // 1. Dibujar el mapa base
             this.mapManager.draw(this.ctx, cameraOffsetX, cameraOffsetY, timestamp);
 
-            // 2. Unificar Jugador, Objetos y Enemigos para Y-Sorting de profundidad
             const activeObjects = this.mapManager.getActiveObjects() || [];
             const renderList = [
                 this.player,
-                ...this.enemies,
+                ...this.enemies.filter(e => e.state !== 'dead'), // Ocultar muertos temporalmente
                 ...activeObjects
             ];
 
             renderList.sort((a, b) => ((a.x || 0) + (a.y || 0)) - ((b.x || 0) + (b.y || 0)));
 
-            // 3. Dibujar en orden de profundidad
             renderList.forEach(entity => {
                 if (entity && typeof entity.draw === 'function') {
                     entity.draw(this.ctx, cameraOffsetX, cameraOffsetY, timestamp);
                 }
             });
 
-            // 4. Joystick UI
             this.inputManager.draw(this.ctx);
         } catch (e) {
             console.error("Error en render:", e);
