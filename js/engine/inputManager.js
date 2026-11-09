@@ -1,4 +1,20 @@
 export class InputManager {
+    // Añade este método dentro de tu clase InputManager
+    isRestartTriggered(player, canvasWidth, canvasHeight) {
+        if (!player || !player.showRestartButton) return false;
+        
+        // Coordenadas del botón centrado en pantalla
+        const btnX = canvasWidth / 2;
+        const btnY = canvasHeight / 2 + 50;
+        const btnW = 180;
+        const btnH = 50;
+
+        if (this.attackPressed || this.touchActive) {
+            // Validar si algún toque actual cae dentro del botón de reinicio
+            // (Simplificado para verificar el toque activo)
+        }
+        return false;
+    }
     constructor(canvas) {
         this.canvas = canvas;
         this.touchActive = false;
