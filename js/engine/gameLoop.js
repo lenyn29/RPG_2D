@@ -40,11 +40,10 @@ class GameEngine {
             this.mapManager.update(this.player.x, this.player.y);
             const activeObjects = this.mapManager.getActiveObjects() || [];
             
-            // Actualizar jugador
-            this.player.update(this.inputManager, this.mapManager, activeObjects);
+            // Actualizar jugador pasando los objetos y los enemigos para colisión sólida
+            this.player.update(this.inputManager, this.mapManager, activeObjects, this.enemies);
 
-            // Actualizar enemigos
-            // Dentro del método update(dt) de tu GameEngine:
+            // Actualizar enemigos pasando el jugador para IA, ataques y colisión
             this.enemies.forEach(enemy => {
                 enemy.update(this.mapManager, activeObjects, this.player);
             });
@@ -52,7 +51,6 @@ class GameEngine {
             console.error("Error en update:", e);
         }
     }
-
     render(timestamp) {
         try {
             this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
