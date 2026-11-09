@@ -15,8 +15,8 @@ export class Player {
         };
 
         // Dimensiones exactas de cada frame
-        this.frameWidth = 16;  
-        this.frameHeight = 24; 
+        this.frameWidth = 48;  
+        this.frameHeight = 48; 
         
         // Control de animación
         this.animTimer = 0;
