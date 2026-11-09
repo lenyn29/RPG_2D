@@ -43,19 +43,21 @@ export class Player {
                 this.y = nextY;
             }
 
-            // Cálculo direccional por ángulos del Joystick:
-            // - Arriba: 60 grados (-120° a -60°)
-            // - Abajo:  60 grados (60° a 120°)
-            // - Derecha: 120 grados (-60° a 60°)
-            // - Izquierda: 120 grados (Resto: < -120° o > 120°)
-            const angle = Math.atan2(move.y, move.x) * (180 / Math.PI);
+            // Mapeo angular exacto con Arriba = 0°:
+            // - Arriba (0°): Rango de 60° (-30° a 30° / 330° a 30°)
+            // - Derecha (90°): Rango de 120° (30° a 150°)
+            // - Abajo (180°): Rango de 60° (150° a 210°)
+            // - Izquierda (270°): Rango de 120° (210° to 330°)
+            const rad = Math.atan2(move.x, -move.y);
+            let angle = rad * (180 / Math.PI);
+            if (angle < 0) angle += 360;
 
-            if (angle >= -120 && angle <= -60) {
+            if (angle >= 330 || angle <= 30) {
                 this.facing = 'up';
-            } else if (angle >= 60 && angle <= 120) {
-                this.facing = 'down';
-            } else if (angle > -60 && angle < 60) {
+            } else if (angle > 30 && angle < 150) {
                 this.facing = 'right';
+            } else if (angle >= 150 && angle <= 210) {
+                this.facing = 'down';
             } else {
                 this.facing = 'left';
             }
