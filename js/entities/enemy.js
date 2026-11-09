@@ -5,10 +5,9 @@ export class Enemy {
         this.x = startX;
         this.y = startY;
         this.type = type;
-        this.speed = 0.02; // Velocidad base de patrulla/persecución
-        this.radius = 0.35; // Radio de colisión físico
+        this.speed = 0.02; 
+        this.radius = 0.35; // Radio de colisión sólido
         
-        // Carga de la hoja de sprites del Slime
         this.sprite = new Image();
         this.sprite.src = 'assets/slime.png';
         this.spriteLoaded = false;
@@ -16,28 +15,48 @@ export class Enemy {
             this.spriteLoaded = true;
         };
 
-        // Dimensiones de 32x32 y escala 1.6x
         this.frameWidth = 32;
         this.frameHeight = 32;
         this.scale = 1.6;
 
-        // Control de animación y estados
         this.animTimer = 0;
         this.currentFrame = 0;
-        this.facing = 'down'; // 'down', 'up', 'left', 'right'
-        this.state = 'idle';  // 'idle', 'walk', 'attack', 'hurt', 'dead'
+        this.facing = 'down'; 
+        this.state = 'idle';  
         
-        // IA y comportamiento de combate
         this.changeDirTimer = 0;
         this.moveAngle = Math.random() * Math.PI * 2;
         this.attackCooldown = 0;
-        this.hurtTimer = 0;
+    }
+
+    // Comprobación estricta de colisión del Slime (incluyendo al jugador y objetos)
+    canMoveTo(newX, newY, mapManager, objects = [], player = null) {
+        if (mapManager && !mapManager.isWalkable(newX, newY)) return false;
+
+        // Colisión con objetos (rocas, árboles)
+        for (let obj of objects) {
+            const dx = newX - obj.x;
+            const dy = newY - obj.y;
+            if (Math.sqrt(dx * dx + dy * dy) < (this.radius + obj.radius)) {
+                return false;
+            }
+        }
+
+        // Colisión con el héroe (el slime no puede atravesar al jugador)
+        if (player) {
+            const dx = newX - player.x;
+            const dy = newY - player.y;
+            if (Math.sqrt(dx * dx + dy * dy) < (this.radius + player.radius)) {
+                return false;
+            }
+        }
+
+        return true;
     }
 
     update(mapManager, objects = [], player = null) {
         if (this.state === 'dead') return;
 
-        // Reducir cooldowns
         if (this.attackCooldown > 0) this.attackCooldown--;
 
         let targetDist = 999;
@@ -50,47 +69,47 @@ export class Enemy {
             targetDist = Math.sqrt(pdx * pdx + pdy * pdy);
         }
 
-        // --- MÁQUINA DE ESTADOS E IA ---
         if (this.state === 'hurt') {
-            // Animación de retroceso (Retrocede un poco al recibir daño)
             const pushBackSpeed = 0.03;
             const nextX = this.x - Math.cos(this.moveAngle) * pushBackSpeed;
             const nextY = this.y - Math.sin(this.moveAngle) * pushBackSpeed;
-            if (mapManager && mapManager.isWalkable(nextX, nextY)) {
+            if (this.canMoveTo(nextX, nextY, mapManager, objects, player)) {
                 this.x = nextX;
                 this.y = nextY;
             }
         } else if (this.state === 'attack') {
-            // Impulso hacia adelante (salto de ataque) antes de impactar
             const lungeSpeed = 0.045;
             const angleToPlayer = player ? Math.atan2(pdy, pdx) : this.moveAngle;
             const nextX = this.x + Math.cos(angleToPlayer) * lungeSpeed;
             const nextY = this.y + Math.sin(angleToPlayer) * lungeSpeed;
-            if (mapManager && mapManager.isWalkable(nextX, nextY)) {
+            
+            if (this.canMoveTo(nextX, nextY, mapManager, objects, player)) {
                 this.x = nextX;
                 this.y = nextY;
             }
+
+            // Si el salto de ataque toca al jugador, le inflige daño y retroceso
+            if (player && targetDist < 0.8) {
+                player.takeDamage(this.x, this.y);
+            }
         } else if (player && targetDist < 1.4 && this.attackCooldown === 0) {
-            // Iniciar Ataque si está muy cerca
             this.state = 'attack';
             this.currentFrame = 0;
             this.animTimer = 0;
-            this.attackCooldown = 90; // Cooldown entre ataques
+            this.attackCooldown = 90;
         } else if (player && targetDist < 4.5) {
-            // Persecución al jugador
             this.state = 'walk';
             const angleToPlayer = Math.atan2(pdy, pdx);
             const nextX = this.x + Math.cos(angleToPlayer) * this.speed;
             const nextY = this.y + Math.sin(angleToPlayer) * this.speed;
 
-            if (mapManager && mapManager.isWalkable(nextX, nextY)) {
+            if (this.canMoveTo(nextX, nextY, mapManager, objects, player)) {
                 this.x = nextX;
                 this.y = nextY;
             }
 
             this.updateFacing(angleToPlayer);
         } else {
-            // Patrulla errante
             this.changeDirTimer += 0.02;
             if (this.changeDirTimer > 3) {
                 this.moveAngle = Math.random() * Math.PI * 2;
@@ -102,7 +121,7 @@ export class Enemy {
                 const nextX = this.x + Math.cos(this.moveAngle) * (this.speed * 0.6);
                 const nextY = this.y + Math.sin(this.moveAngle) * (this.speed * 0.6);
                 
-                if (mapManager && mapManager.isWalkable(nextX, nextY)) {
+                if (this.canMoveTo(nextX, nextY, mapManager, objects, player)) {
                     this.x = nextX;
                     this.y = nextY;
                 }
@@ -111,7 +130,6 @@ export class Enemy {
             }
         }
 
-        // --- CONTROL EXACTO DE FRAMES POR ESTADO ---
         let maxFrames = 4;
         let animSpeed = 0.12;
 
@@ -126,9 +144,9 @@ export class Enemy {
             this.currentFrame++;
             if (this.currentFrame >= maxFrames) {
                 if (this.state === 'dead') {
-                    this.currentFrame = maxFrames - 1; // Mantener último frame de muerte
+                    this.currentFrame = maxFrames - 1;
                 } else if (this.state === 'attack' || this.state === 'hurt') {
-                    this.state = 'idle'; // Regresar a idle al terminar animación de ataque o daño
+                    this.state = 'idle';
                     this.currentFrame = 0;
                 } else {
                     this.currentFrame = 0;
@@ -146,7 +164,6 @@ export class Enemy {
         }
     }
 
-    // Método para activar retroceso de daño desde el exterior (ej: al golpear al slime)
     applyDamage(sourceX, sourceY) {
         this.state = 'hurt';
         this.currentFrame = 0;
@@ -159,19 +176,12 @@ export class Enemy {
         const renderX = screen.x + cameraOffsetX;
         const renderY = screen.y + cameraOffsetY;
 
-        // Sombra en el suelo
         ctx.fillStyle = 'rgba(0, 0, 0, 0.4)';
         ctx.beginPath();
         ctx.ellipse(renderX, renderY + 2, Iso.tileWidth / 3.2, Iso.tileHeight / 4.2, 0, 0, Math.PI * 2);
         ctx.fill();
 
         if (this.spriteLoaded && this.sprite.complete) {
-            // Mapeo exacto de filas según tu especificación:
-            // f0: Idle abajo (4) | f1: Idle derecha (4) | f2: Idle arriba (4)
-            // f3: Caminar abajo (6) | f4: Caminar derecha (6) | f5: Caminar arriba (6)
-            // f6: Ataque abajo (7) | f7: Ataque derecha (7) | f8: Ataque arriba (7)
-            // f9: Retroceso abajo (3) | f10: Retroceso derecha (3) | f11: Retroceso arriba (3)
-            // f12: Muerte derecha (5)
             let row = 0;
 
             if (this.state === 'idle') {
@@ -201,7 +211,6 @@ export class Enemy {
             const drawHeight = this.frameHeight * this.scale;
 
             ctx.save();
-            // Aplicar espejo horizontal si mira a la izquierda (en filas derechas)
             if (this.facing === 'left') {
                 ctx.translate(renderX, renderY);
                 ctx.scale(-1, 1);
@@ -221,7 +230,6 @@ export class Enemy {
             }
             ctx.restore();
         } else {
-            // Respaldo visual temporal si carga tarde
             ctx.fillStyle = '#10B981';
             ctx.beginPath();
             ctx.arc(renderX, renderY - 10, 10, 0, Math.PI * 2);
