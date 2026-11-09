@@ -1,156 +1,101 @@
 export class InputManager {
     constructor(canvas) {
         this.canvas = canvas;
-        
-        // Controles de teclado
-        this.keys = { w: false, a: false, s: false, d: false };
-
-        // Joystick Táctil Robusto
         this.touchActive = false;
-        this.activePointerId = null;
-        this.joystickBase = { x: 0, y: 0 };
-        this.joystickCurrent = { x: 0, y: 0 };
+        this.touchId = null;
+        this.baseX = 0;
+        this.baseY = 0;
+        this.currX = 0;
+        this.currY = 0;
         this.maxRadius = 50;
-        this.inputVector = { x: 0, y: 0 };
 
-        this.initListeners();
+        this.setupListeners();
     }
 
-    initListeners() {
-        window.addEventListener('keydown', (e) => this.handleKey(e, true));
-        window.addEventListener('keyup', (e) => this.handleKey(e, false));
+    setupListeners() {
+        window.addEventListener('touchstart', (e) => {
+            if (!this.touchActive) {
+                const touch = e.changedTouches[0];
+                // Solo activamos el joystick si se toca la mitad izquierda de la pantalla, o toda la pantalla si prefieres
+                this.touchId = touch.identifier;
+                this.baseX = touch.clientX;
+                this.baseY = touch.clientY;
+                this.currX = touch.clientX;
+                this.currY = touch.clientY;
+                this.touchActive = true;
+            }
+        }, { passive: false });
 
-        this.canvas.addEventListener('pointerdown', (e) => this.startJoystick(e));
-        this.canvas.addEventListener('pointermove', (e) => this.moveJoystick(e));
-        this.canvas.addEventListener('pointerup', (e) => this.endJoystick(e));
-        this.canvas.addEventListener('pointercancel', (e) => this.endJoystick(e));
+        window.addEventListener('touchmove', (e) => {
+            if (!this.touchActive) return;
+            for (let i = 0; i < e.changedTouches.length; i++) {
+                const touch = e.changedTouches[i];
+                if (touch.identifier === this.touchId) {
+                    this.currX = touch.clientX;
+                    this.currY = touch.clientY;
+                    break;
+                }
+            }
+            e.preventDefault();
+        }, { passive: false });
+
+        const endHandler = (e) => {
+            if (!this.touchActive) return;
+            for (let i = 0; i < e.changedTouches.length; i++) {
+                if (e.changedTouches[i].identifier === this.touchId) {
+                    this.touchActive = false;
+                    this.touchId = null;
+                    this.currX = this.baseX;
+                    this.currY = this.baseY;
+                    break;
+                }
+            }
+        };
+
+        window.addEventListener('touchend', endHandler);
+        window.addEventListener('touchcancel', endHandler);
     }
 
-    handleKey(e, isPressed) {
-        switch(e.key.toLowerCase()) {
-            case 'w': case 'arrowup': this.keys.w = isPressed; break;
-            case 's': case 'arrowdown': this.keys.s = isPressed; break;
-            case 'a': case 'arrowleft': this.keys.a = isPressed; break;
-            case 'd': case 'arrowright': this.keys.d = isPressed; break;
-        }
-    }
-
-    startJoystick(e) {
-        if (this.touchActive) return;
-
-        const rect = this.canvas.getBoundingClientRect();
-        const clientX = e.clientX;
-        const clientY = e.clientY;
-        const canvasX = clientX - rect.left;
-        const canvasY = clientY - rect.top;
-
-        // Zona permitida: Mitad inferior izquierda de la pantalla
-        const allowedZoneWidth = this.canvas.width * 0.5;
-        const allowedZoneHeightStart = this.canvas.height * 0.4;
-
-        if (canvasX <= allowedZoneWidth && canvasY >= allowedZoneHeightStart) {
-            this.touchActive = true;
-            this.activePointerId = e.pointerId;
-            
-            try {
-                this.canvas.setPointerCapture(e.pointerId);
-            } catch (err) {}
-
-            this.joystickBase = { x: clientX, y: clientY };
-            this.joystickCurrent = { x: clientX, y: clientY };
-            this.inputVector = { x: 0, y: 0 };
-        }
-    }
-
-    moveJoystick(e) {
-        if (!this.touchActive || e.pointerId !== this.activePointerId) return;
-
-        const dx = e.clientX - this.joystickBase.x;
-        const dy = e.clientY - this.joystickBase.y;
-        const distance = Math.hypot(dx, dy);
-
-        // Limitar la posición visual del pomo
-        if (distance > this.maxRadius) {
-            this.joystickCurrent.x = this.joystickBase.x + (dx / distance) * this.maxRadius;
-            this.joystickCurrent.y = this.joystickBase.y + (dy / distance) * this.maxRadius;
-        } else {
-            this.joystickCurrent.x = e.clientX;
-            this.joystickCurrent.y = e.clientY;
-        }
-
-        if (distance > 4) {
-            const intensity = Math.min(distance, this.maxRadius) / this.maxRadius;
-            const angle = Math.atan2(dy, dx);
-
-            // Dirección normalizada en pantalla (-1 a 1)
-            const dirX = Math.cos(angle) * intensity;
-            const dirY = Math.sin(angle) * intensity;
-
-            // MATRIZ DE CONVERSIÓN ISOMÉTRICA CORRECTA:
-            // En perspectiva isométrica, movernos en diagonal de pantalla mapea los ejes lógicos X e Y.
-            // Escalamos con un factor pequeño para que coincida con la velocidad del jugador.
-            const scale = 0.08;
-            this.inputVector.x = (dirY + dirX * 0.5) * scale * (intensity * 10);
-            this.inputVector.y = (dirY - dirX * 0.5) * scale * (intensity * 10);
-        } else {
-            this.inputVector = { x: 0, y: 0 };
-        }
-    }
-
-    endJoystick(e) {
-        if (e && this.activePointerId !== null && e.pointerId !== this.activePointerId) return;
-
-        if (this.activePointerId !== null) {
-            try {
-                this.canvas.releasePointerCapture(this.activePointerId);
-            } catch (err) {}
-        }
-
-        this.touchActive = false;
-        this.activePointerId = null;
-        this.inputVector = { x: 0, y: 0 };
-    }
-
+    // Retorna el vector del joystick normalizado a la pantalla
     getMovementVector() {
-        let moveX = 0;
-        let moveY = 0;
+        if (!this.touchActive) return { x: 0, y: 0 };
 
-        // Teclado
-        if (this.keys.w) { moveX -= 1; moveY -= 1; }
-        if (this.keys.s) { moveX += 1; moveY += 1; }
-        if (this.keys.a) { moveX -= 1; moveY += 1; }
-        if (this.keys.d) { moveX += 1; moveY -= 1; }
+        let dx = this.currX - this.baseX;
+        let dy = this.currY - this.baseY; // En HTML5 Canvas, Y positivo es ABAJO, Y negativo es ARRIBA
+        const distance = Math.sqrt(dx * dx + dy * dy);
 
-        if (moveX !== 0 || moveY !== 0) {
-            const length = Math.hypot(moveX, moveY);
-            moveX = (moveX / length) * 0.05; // Velocidad estándar de teclado
-            moveY = (moveY / length) * 0.05;
-        }
+        if (distance === 0) return { x: 0, y: 0 };
 
-        // Joystick Táctil (Tiene prioridad si está activo)
-        if (this.touchActive && (this.inputVector.x !== 0 || this.inputVector.y !== 0)) {
-            moveX = this.inputVector.x;
-            moveY = this.inputVector.y;
-        }
+        // Limitar al radio máximo del joystick
+        const force = Math.min(distance, this.maxRadius) / this.maxRadius;
+        const normX = dx / distance;
+        const normY = dy / distance;
 
-        return { x: moveX, y: moveY };
+        return {
+            x: normX * force,
+            y: normY * force
+        };
     }
 
     draw(ctx) {
-        if (this.touchActive) {
-            ctx.strokeStyle = 'rgba(0, 240, 255, 0.4)';
-            ctx.lineWidth = 3;
-            ctx.beginPath();
-            ctx.arc(this.joystickBase.x, this.joystickBase.y, this.maxRadius, 0, Math.PI * 2);
-            ctx.stroke();
+        if (!this.touchActive) return;
 
-            ctx.fillStyle = 'rgba(0, 240, 255, 0.8)';
-            ctx.beginPath();
-            ctx.arc(this.joystickCurrent.x, this.joystickCurrent.y, 22, 0, Math.PI * 2);
-            ctx.fill();
-            ctx.strokeStyle = '#FFFFFF';
-            ctx.lineWidth = 2;
-            ctx.stroke();
-        }
+        // Dibujar base del joystick
+        ctx.beginPath();
+        ctx.arc(this.baseX, this.baseY, this.maxRadius, 0, Math.PI * 2);
+        ctx.fillStyle = 'rgba(255, 255, 255, 0.15)';
+        ctx.fill();
+        ctx.strokeStyle = 'rgba(255, 255, 255, 0.3)';
+        ctx.lineWidth = 2;
+        ctx.stroke();
+
+        // Dibujar palanca (thumb) del joystick
+        ctx.beginPath();
+        ctx.arc(this.currX, this.currY, 22, 0, Math.PI * 2);
+        ctx.fillStyle = 'rgba(0, 240, 255, 0.5)';
+        ctx.fill();
+        ctx.strokeStyle = '#00F0FF';
+        ctx.lineWidth = 2;
+        ctx.stroke();
     }
 }
