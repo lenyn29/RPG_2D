@@ -20,13 +20,15 @@ export class Player {
         
         this.animTimer = 0;
         this.currentFrame = 0;
-        this.facing = 'down'; // 'down', 'up', 'left', 'right'
-        this.state = 'idle';  // 'idle', 'walk', 'attack', 'dead'
+        this.facing = 'down'; 
+        this.state = 'idle';  
 
-        // Combate, vida y daño
-        this.hp = 100;
+        // Sistema de Combate: 10 HP y 1 de daño
+        this.maxHp = 10;
+        this.hp = 10;
         this.isHurt = false;
         this.hurtTimer = 0;
+        this.invincibleFrames = 0; // Previene bloqueo o congelamiento por golpes seguidos
         this.knockbackAngle = 0;
         this.isAttacking = false;
         this.attackCooldown = 0;
@@ -41,9 +43,7 @@ export class Player {
             for (let obj of objects) {
                 const dx = newX - obj.x;
                 const dy = newY - obj.y;
-                if (Math.sqrt(dx * dx + dy * dy) < (this.radius + obj.radius)) {
-                    return false;
-                }
+                if (Math.sqrt(dx * dx + dy * dy) < (this.radius + obj.radius)) return false;
             }
         }
 
@@ -52,65 +52,43 @@ export class Player {
                 if (enemy.state === 'dead') continue;
                 const dx = newX - enemy.x;
                 const dy = newY - enemy.y;
-                if (Math.sqrt(dx * dx + dy * dy) < (this.radius + enemy.radius)) {
-                    return false;
-                }
+                if (Math.sqrt(dx * dx + dy * dy) < (this.radius + enemy.radius)) return false;
             }
         }
         return true;
     }
 
     takeDamage(attackerX, attackerY) {
-        if (this.isHurt || this.state === 'dead') return;
-        this.hp -= 15; // Daño recibido
+        if (this.invincibleFrames > 0 || this.state === 'dead') return;
         
-        if (this.hp <= 0) {
-            this.hp = 0;
-            this.state = 'dead';
-            this.currentFrame = 0;
-            this.animTimer = 0;
-            return;
-        }
-
         this.isHurt = true;
-        this.hurtTimer = 25;
+        this.hurtTimer = 20;
+        this.invincibleFrames = 40; // Inmunidad temporal para evitar congelamiento
         this.knockbackAngle = Math.atan2(this.y - attackerY, this.x - attackerX);
     }
 
-    performAttack(enemies = []) {
+    performAttack() {
         if (this.isAttacking || this.attackCooldown > 0 || this.isHurt || this.state === 'dead') return;
 
         this.isAttacking = true;
         this.state = 'attack';
         this.currentFrame = 0;
         this.animTimer = 0;
-        this.attackCooldown = 35; // Cooldown de ataque
-
-        const attackRange = 1.3; // Rango de alcance del golpe
-
-        enemies.forEach(enemy => {
-            if (enemy.state === 'dead') return;
-            const dx = enemy.x - this.x;
-            const dy = enemy.y - this.y;
-            const dist = Math.sqrt(dx * dx + dy * dy);
-
-            if (dist <= attackRange) {
-                enemy.applyDamage(this.x, this.y);
-            }
-        });
+        this.attackCooldown = 35; 
     }
 
     update(inputManager, mapManager, objects = [], enemies = []) {
-        if (this.state === 'dead') return; // Si está muerto, no procesa acciones
+        if (this.state === 'dead') return;
 
         if (this.attackCooldown > 0) this.attackCooldown--;
+        if (this.invincibleFrames > 0) this.invincibleFrames--;
 
         if (inputManager.isAttackTriggered()) {
-            this.performAttack(enemies);
+            this.performAttack();
         }
 
         if (this.isHurt) {
-            const kbSpeed = 0.04;
+            const kbSpeed = 0.035;
             const nextX = this.x + Math.cos(this.knockbackAngle) * kbSpeed;
             const nextY = this.y + Math.sin(this.knockbackAngle) * kbSpeed;
 
@@ -124,12 +102,11 @@ export class Player {
             return;
         }
 
-        // Animación de ataque (exactamente 4 frames en filas 6, 7 y 8)
         if (this.isAttacking) {
             this.animTimer += 0.25;
             if (this.animTimer >= 1) {
                 this.currentFrame++;
-                if (this.currentFrame >= 4) {
+                if (this.currentFrame >= 4) { // 4 frames de ataque exactos
                     this.isAttacking = false;
                     this.state = 'idle';
                     this.currentFrame = 0;
@@ -165,15 +142,10 @@ export class Player {
             let angle = Math.atan2(move.x, -move.y) * (180 / Math.PI);
             if (angle < 0) angle += 360;
 
-            if (angle >= 330 || angle <= 30) {
-                this.facing = 'up';
-            } else if (angle > 30 && angle < 150) {
-                this.facing = 'right';
-            } else if (angle >= 150 && angle <= 210) {
-                this.facing = 'down';
-            } else {
-                this.facing = 'left';
-            }
+            if (angle >= 330 || angle <= 30) this.facing = 'up';
+            else if (angle > 30 && angle < 150) this.facing = 'right';
+            else if (angle >= 150 && angle <= 210) this.facing = 'down';
+            else this.facing = 'left';
 
             this.animTimer += 0.25;
             if (this.animTimer >= 1) {
@@ -200,34 +172,32 @@ export class Player {
         ctx.ellipse(renderX, renderY + 2, Iso.tileWidth / 2.8, Iso.tileHeight / 3.8, 0, 0, Math.PI * 2);
         ctx.fill();
 
-        if (this.isHurt && Math.floor(this.hurtTimer / 3) % 2 === 0) {
+        // Parpadeo suave al recibir daño o invulnerabilidad
+        if (this.invincibleFrames > 0 && Math.floor(this.invincibleFrames / 3) % 2 === 0) {
             return; 
         }
 
         if (this.spriteLoaded && this.sprite.complete) {
             let row = 0;
             let maxFrames = 6;
-            const currentState = this.isHurt ? 'idle' : this.state;
+            const currentState = this.state;
 
             if (currentState === 'dead') {
-                row = 9; // Fila 9: Muerte
-                maxFrames = 6; // O los frames que tenga tu sprite de muerte
+                row = 9; // Fila de muerte
+                maxFrames = 5;
             } else if (currentState === 'idle') {
                 if (this.facing === 'down') row = 0;
                 else if (this.facing === 'right' || this.facing === 'left') row = 1;
                 else if (this.facing === 'up') row = 2;
-                maxFrames = 6;
             } else if (currentState === 'walk') {
                 if (this.facing === 'down') row = 3;
                 else if (this.facing === 'right' || this.facing === 'left') row = 4;
                 else if (this.facing === 'up') row = 5;
-                maxFrames = 6;
             } else if (currentState === 'attack') {
-                // Filas 6, 7 y 8 con EXACTAMENTE 4 frames
                 if (this.facing === 'down') row = 6;
                 else if (this.facing === 'right' || this.facing === 'left') row = 7;
                 else if (this.facing === 'up') row = 8;
-                maxFrames = 4;
+                maxFrames = 4; // 4 frames de ataque exactos
             }
 
             const safeFrame = this.currentFrame % maxFrames;
@@ -241,19 +211,9 @@ export class Player {
             if (this.facing === 'left') {
                 ctx.translate(renderX, renderY);
                 ctx.scale(-1, 1);
-                ctx.drawImage(
-                    this.sprite,
-                    sx, sy, this.frameWidth, this.frameHeight,
-                    -drawWidth / 2, -drawHeight + (Iso.tileHeight / 2),
-                    drawWidth, drawHeight
-                );
+                ctx.drawImage(this.sprite, sx, sy, this.frameWidth, this.frameHeight, -drawWidth / 2, -drawHeight + (Iso.tileHeight / 2), drawWidth, drawHeight);
             } else {
-                ctx.drawImage(
-                    this.sprite,
-                    sx, sy, this.frameWidth, this.frameHeight,
-                    renderX - drawWidth / 2, renderY - drawHeight + (Iso.tileHeight / 2),
-                    drawWidth, drawHeight
-                );
+                ctx.drawImage(this.sprite, sx, sy, this.frameWidth, this.frameHeight, renderX - drawWidth / 2, renderY - drawHeight + (Iso.tileHeight / 2), drawWidth, drawHeight);
             }
             ctx.restore();
         } else {
@@ -262,5 +222,19 @@ export class Player {
             ctx.arc(renderX, renderY - 15, 12, 0, Math.PI * 2);
             ctx.fill();
         }
+
+        // Barra de Vida miniatura sobre el Héroe
+        this.drawHealthBar(ctx, renderX, renderY - 45);
+    }
+
+    drawHealthBar(ctx, x, y) {
+        const barWidth = 40;
+        const barHeight = 5;
+        ctx.fillStyle = 'rgba(0, 0, 0, 0.6)';
+        ctx.fillRect(x - barWidth / 2, y, barWidth, barHeight);
+
+        const hpRatio = Math.max(0, this.hp / this.maxHp);
+        ctx.fillStyle = '#22c55e'; // Verde vida
+        ctx.fillRect(x - barWidth / 2, y, barWidth * hpRatio, barHeight);
     }
 }
