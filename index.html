@@ -10,6 +10,7 @@
             margin: 0;
             padding: 0;
             user-select: none;
+            -webkit-user-select: none;
         }
         body, html {
             width: 100%;
@@ -20,11 +21,13 @@
             justify-content: center;
             align-items: center;
             font-family: monospace;
+            touch-action: none; /* <--- CRUCIAL PARA MÓVILES */
         }
         canvas {
             display: block;
             background: #182033;
             box-shadow: 0 0 20px rgba(0, 240, 255, 0.2);
+            touch-action: none; /* <--- CRUCIAL PARA MÓVILES */
         }
     </style>
 </head>
