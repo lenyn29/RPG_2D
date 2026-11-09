@@ -44,8 +44,9 @@ class GameEngine {
             this.player.update(this.inputManager, this.mapManager, activeObjects);
 
             // Actualizar enemigos
+            // Dentro del método update(dt) de tu GameEngine:
             this.enemies.forEach(enemy => {
-                enemy.update(this.mapManager, activeObjects);
+                enemy.update(this.mapManager, activeObjects, this.player);
             });
         } catch (e) {
             console.error("Error en update:", e);
