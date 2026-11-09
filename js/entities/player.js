@@ -22,7 +22,7 @@ export class Player {
         this.state = 'idle';  
 
         this.name = "Doruk";
-        this.level = 1; // Nivel del héroe
+        this.level = 1;
         this.maxHp = 10;
         this.hp = 10;
         
@@ -33,7 +33,7 @@ export class Player {
         this.isAttacking = false;
         this.attackCooldown = 0;
         
-        this.fadeTimer = 0; // Temporizador para desvanecer el cuerpo (3s)
+        this.deathCounter = 0; // Contador estricto de 5 segundos (300 frames)
         this.showRestartButton = false;
     }
 
@@ -83,15 +83,19 @@ export class Player {
 
     update(inputManager, mapManager, objects = [], enemies = []) {
         if (this.state === 'dead') {
-            this.animTimer += 0.05; // Muerte lenta y dramática
+            this.animTimer += 0.05;
             if (this.animTimer >= 1) {
                 this.currentFrame++;
                 if (this.currentFrame >= 5) {
                     this.currentFrame = 4;
-                    if (this.fadeTimer < 180) this.fadeTimer++;
-                    else this.showRestartButton = true; // Mostrar botón tras 3 segundos
                 }
                 this.animTimer = 0;
+            }
+
+            // Exactly 5 segundos (300 frames a 60fps) para mostrar el botón de reiniciar
+            this.deathCounter++;
+            if (this.deathCounter >= 300) {
+                this.showRestartButton = true;
             }
             return;
         }
@@ -179,10 +183,8 @@ export class Player {
         const renderX = screen.x + cameraOffsetX;
         const renderY = screen.y + cameraOffsetY;
 
-        // Si ya pasaron 3 segundos de muerte, el cuerpo se desvanece
-        const isFadedOut = (this.state === 'dead' && this.fadeTimer >= 180);
+        const isFadedOut = (this.state === 'dead' && this.deathCounter >= 300);
 
-        // Charco de sangre permanente al morir
         if (this.state === 'dead') {
             ctx.fillStyle = 'rgba(185, 28, 28, 0.7)';
             ctx.beginPath();
@@ -246,11 +248,12 @@ export class Player {
         }
 
         if (this.state !== 'dead') {
-            this.drawInfoBox(ctx, renderX, renderY - 55);
+            this.drawInfoBox(ctx, renderX, renderY - 60); // Margen superior adecuado
         }
     }
 
     drawInfoBox(ctx, x, y) {
+        // Margen claro entre el texto del nombre/nivel y la barra de vida
         ctx.fillStyle = '#FFFFFF';
         ctx.font = 'bold 11px sans-serif';
         ctx.textAlign = 'center';
@@ -258,11 +261,13 @@ export class Player {
 
         const barWidth = 42;
         const barHeight = 5;
+        const barY = y + 6; // Margen de separación limpio
+
         ctx.fillStyle = 'rgba(0, 0, 0, 0.6)';
-        ctx.fillRect(x - barWidth / 2, y + 3, barWidth, barHeight);
+        ctx.fillRect(x - barWidth / 2, barY, barWidth, barHeight);
 
         const hpRatio = Math.max(0, this.hp / this.maxHp);
         ctx.fillStyle = '#22c55e';
-        ctx.fillRect(x - barWidth / 2, y + 3, barWidth * hpRatio, barHeight);
+        ctx.fillRect(x - barWidth / 2, barY, barWidth * hpRatio, barHeight);
     }
 }
