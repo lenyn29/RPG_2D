@@ -14,8 +14,8 @@ class GameEngine {
         this.inputManager = new InputManager(this.canvas);
         this.mapManager = new MapManager();
         
-        // Posición inicial segura en el centro del mapa (zona caminable)
-        this.player = new Player(4.0, 4.0); 
+        // Spawn inicial en el centro del mapa 32x32 (16, 16)
+        this.player = new Player(16.0, 16.0); 
         
         this.lastTime = performance.now();
         this.loop = this.loop.bind(this);
@@ -31,14 +31,14 @@ class GameEngine {
         this.player.update(this.inputManager, this.mapManager);
     }
 
-    render() {
+    render(timestamp) {
         this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
 
         const cameraOffsetX = this.canvas.width / 2;
         const cameraOffsetY = this.canvas.height / 3.5;
 
-        // 1. Renderizar Mapa
-        this.mapManager.draw(this.ctx, cameraOffsetX, cameraOffsetY);
+        // 1. Renderizar Mapa pasando el timestamp para la animación de la hierba
+        this.mapManager.draw(this.ctx, cameraOffsetX, cameraOffsetY, timestamp);
 
         // 2. Renderizar Jugador
         this.player.draw(this.ctx, cameraOffsetX, cameraOffsetY);
@@ -52,7 +52,7 @@ class GameEngine {
         this.lastTime = timestamp;
 
         this.update(dt);
-        this.render();
+        this.render(timestamp);
 
         requestAnimationFrame(this.loop);
     }
