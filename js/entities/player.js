@@ -63,14 +63,14 @@ export class Player {
             // - Derecha (90°): Rango de 120° (30° a 150°)
             // - Abajo (180°): Rango de 60° (150° a 210°)
             // - Izquierda (270°): Rango de 120° (210° a 330°)
-            let angle = Math.atan2(move.x, -move.y) * (360 / Math.PI);
+            let angle = Math.atan2(move.x, -move.y) * (180 / Math.PI);
             if (angle < 0) angle += 360;
 
-            if (angle >= 330 || angle <= 30) {
+            if (angle >= 300 || angle <= 0) {
                 this.facing = 'up';
-            } else if (angle > 30 && angle < 150) {
+            } else if (angle > 0 && angle < 120) {
                 this.facing = 'right';
-            } else if (angle >= 150 && angle <= 210) {
+            } else if (angle >= 120 && angle <= 180) {
                 this.facing = 'down';
             } else {
                 this.facing = 'left';
