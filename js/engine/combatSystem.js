@@ -1,13 +1,12 @@
 export class CombatSystem {
-    constructor() {
-        // Nada de estado global complejo, gestiona interacciones en tiempo real
+    constructor(particleSystem) {
+        this.particles = particleSystem;
     }
 
-    // Comprobar ataques del jugador a los enemigos
     processPlayerAttack(player, enemies) {
         if (!player.isAttacking) return;
 
-        const attackRange = 1.3; // Rango de alcance del golpe
+        const attackRange = 1.3;
         enemies.forEach(enemy => {
             if (enemy.state === 'dead' || enemy.isHurt) return;
 
@@ -16,23 +15,22 @@ export class CombatSystem {
             const dist = Math.sqrt(dx * dx + dy * dy);
 
             if (dist <= attackRange) {
-                // Aplicar 1 punto de daño al enemigo
-                enemy.hp -= 1;
+                enemy.hp -= 1; // 1 punto de daño estricto
                 enemy.applyDamage(player.x, player.y);
+                this.particles.emitBlood(enemy.x, enemy.y, 6);
 
                 if (enemy.hp <= 0) {
                     enemy.hp = 0;
                     enemy.state = 'dead';
                     enemy.currentFrame = 0;
                     enemy.animTimer = 0;
-                    enemy.respawnTimer = 600; // 10 segundos a 60 FPS (600 frames)
+                    enemy.respawnTimer = 600; // 10 segundos para respawn
                 }
             }
         });
     }
 
-    // Comprobar ataques de los enemigos al jugador
-    processEnemyAttacks(player, enemies, mapManager, objects) {
+    processEnemyAttacks(player, enemies) {
         if (player.state === 'dead') return;
 
         enemies.forEach(enemy => {
@@ -42,11 +40,11 @@ export class CombatSystem {
             const dy = player.y - enemy.y;
             const dist = Math.sqrt(dx * dx + dy * dy);
 
-            // Si el slime está ejecutando su salto de ataque y toca al jugador
             if (enemy.state === 'attack' && dist <= 0.8) {
                 if (!player.isHurt && player.invincibleFrames <= 0) {
                     player.hp -= 1; // 1 punto de daño al héroe
                     player.takeDamage(enemy.x, enemy.y);
+                    this.particles.emitBlood(player.x, player.y, 6);
 
                     if (player.hp <= 0) {
                         player.hp = 0;
@@ -59,18 +57,15 @@ export class CombatSystem {
         });
     }
 
-    // Gestionar el respawn de enemigos muertos (cada 10 segundos)
-    updateRespawns(enemies, mapManager) {
+    updateRespawns(enemies) {
         enemies.forEach(enemy => {
             if (enemy.state === 'dead') {
                 if (enemy.respawnTimer > 0) {
                     enemy.respawnTimer--;
                     if (enemy.respawnTimer <= 0) {
-                        // Reaparecer al enemigo con vida llena en su posición o aleatoria cercana
                         enemy.hp = 10;
                         enemy.state = 'idle';
                         enemy.currentFrame = 0;
-                        // Opcional: desplazarlo ligeramente para que no aparezca encima de algo
                     }
                 }
             }
