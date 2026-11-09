@@ -4,7 +4,7 @@ export class Player {
     constructor(startX, startY) {
         this.x = startX; 
         this.y = startY; 
-        this.speed = 0.05; 
+        this.speed = 0.08; // Velocidad adaptada al mapa 32x32
         
         // Carga de la hoja de sprites física
         this.sprite = new Image();
@@ -14,9 +14,10 @@ export class Player {
             this.spriteLoaded = true;
         };
 
-        // Dimensiones exactas de cada frame
+        // Dimensiones estándar de 48x48 y factor de escala 1.6x
         this.frameWidth = 48;  
         this.frameHeight = 48; 
+        this.scale = 1.6;
         
         // Control de animación
         this.animTimer = 0;
@@ -42,15 +43,25 @@ export class Player {
                 this.y = nextY;
             }
 
-            // Orientación
-            if (Math.abs(move.x) > Math.abs(move.y)) {
-                this.facing = move.x > 0 ? 'right' : 'left';
+            // Cálculo direccional por ángulos del Joystick:
+            // - Arriba: 60 grados (-120° a -60°)
+            // - Abajo:  60 grados (60° a 120°)
+            // - Derecha: 120 grados (-60° a 60°)
+            // - Izquierda: 120 grados (Resto: < -120° o > 120°)
+            const angle = Math.atan2(move.y, move.x) * (180 / Math.PI);
+
+            if (angle >= -120 && angle <= -60) {
+                this.facing = 'up';
+            } else if (angle >= 60 && angle <= 120) {
+                this.facing = 'down';
+            } else if (angle > -60 && angle < 60) {
+                this.facing = 'right';
             } else {
-                this.facing = move.y > 0 ? 'down' : 'up';
+                this.facing = 'left';
             }
 
             // Animación de caminar (6 frames)
-            this.animTimer += 0.2;
+            this.animTimer += 0.25;
             if (this.animTimer >= 1) {
                 this.currentFrame = (this.currentFrame + 1) % 6;
                 this.animTimer = 0;
@@ -81,29 +92,32 @@ export class Player {
         // 1. Sombra volumétrica en el suelo
         ctx.fillStyle = 'rgba(0, 0, 0, 0.45)';
         ctx.beginPath();
-        ctx.ellipse(renderX, renderY + 2, Iso.tileWidth / 3.5, Iso.tileHeight / 5, 0, 0, Math.PI * 2);
+        ctx.ellipse(renderX, renderY + 2, Iso.tileWidth / 2.8, Iso.tileHeight / 3.8, 0, 0, Math.PI * 2);
         ctx.fill();
 
         // 2. Selección de la Fila (Row) según estado y dirección
         let row = 0;
-        let maxFrames = 6;
+        const maxFrames = 6;
 
         if (this.state === 'idle') {
-            if (this.facing === 'down') row = 0;             // f0: Idle Abajo (6 frames)
-            else if (this.facing === 'right' || this.facing === 'left') row = 1; // f1: Idle Derecha (6 frames)
-            else if (this.facing === 'up') row = 2;          // f2: Idle Arriba (6 frames)
+            if (this.facing === 'down') row = 0;             // f0: Idle Abajo
+            else if (this.facing === 'right' || this.facing === 'left') row = 1; // f1: Idle Derecha
+            else if (this.facing === 'up') row = 2;          // f2: Idle Arriba
         } else if (this.state === 'walk') {
-            if (this.facing === 'down') row = 3;             // f3: Caminar Abajo (6 frames)
-            else if (this.facing === 'right' || this.facing === 'left') row = 4; // f4: Caminar Derecha (6 frames)
-            else if (this.facing === 'up') row = 5;          // f5: Caminar Arriba (6 frames)
+            if (this.facing === 'down') row = 3;             // f3: Caminar Abajo
+            else if (this.facing === 'right' || this.facing === 'left') row = 4; // f4: Caminar Derecha
+            else if (this.facing === 'up') row = 5;          // f5: Caminar Arriba
         }
 
-        // Asegurar que el frame actual no exceda el límite de la fila activa
         const safeFrame = this.currentFrame % maxFrames;
         const sx = safeFrame * this.frameWidth;
         const sy = row * this.frameHeight;
 
-        // 3. Renderizado con efecto espejo automático si mira a la izquierda
+        // Tamaños aplicados con la escala 1.6x
+        const drawWidth = this.frameWidth * this.scale;
+        const drawHeight = this.frameHeight * this.scale;
+
+        // 3. Renderizado con escala y efecto espejo automático si mira a la izquierda
         ctx.save();
         if (this.facing === 'left') {
             ctx.translate(renderX, renderY);
@@ -111,15 +125,15 @@ export class Player {
             ctx.drawImage(
                 this.sprite,
                 sx, sy, this.frameWidth, this.frameHeight,
-                -this.frameWidth / 2, -this.frameHeight,
-                this.frameWidth, this.frameHeight
+                -drawWidth / 2, -drawHeight + (Iso.tileHeight / 2),
+                drawWidth, drawHeight
             );
         } else {
             ctx.drawImage(
                 this.sprite,
                 sx, sy, this.frameWidth, this.frameHeight,
-                renderX - this.frameWidth / 2, renderY - this.frameHeight,
-                this.frameWidth, this.frameHeight
+                renderX - drawWidth / 2, renderY - drawHeight + (Iso.tileHeight / 2),
+                drawWidth, drawHeight
             );
         }
         ctx.restore();
