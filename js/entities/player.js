@@ -4,7 +4,7 @@ export class Player {
     constructor(startX, startY) {
         this.x = startX; 
         this.y = startY; 
-        this.speed = 0.06; // Velocidad óptima y constante
+        this.speed = 0.055; // Velocidad suave y constante
         
         // Carga de la hoja de sprites física
         this.sprite = new Image();
@@ -14,7 +14,7 @@ export class Player {
             this.spriteLoaded = true;
         };
 
-        // Dimensiones estándar de 48x48 y factor de escala 1.6x
+        // Dimensiones estándar y escala 1.6x
         this.frameWidth = 48;  
         this.frameHeight = 48; 
         this.scale = 1.6;
@@ -32,40 +32,40 @@ export class Player {
         if (move.x !== 0 || move.y !== 0) {
             this.state = 'walk';
             
-            // 1. Normalizar el vector del joystick en el espacio de la pantalla
+            // 1. Normalizar el vector del joystick en la pantalla
             const joyLen = Math.sqrt(move.x * move.x + move.y * move.y);
             const joyX = joyLen > 0 ? move.x / joyLen : 0;
             const joyY = joyLen > 0 ? move.y / joyLen : 0;
 
-            // 2. Transformación inversa exacta de Pantalla a Mundo Isométrico
-            // Esto garantiza que el movimiento en el mundo refleje la dirección visual de la pantalla.
+            // 2. Proyección exacta de Pantalla a Coordenadas Isométricas del Mundo
+            // Esto alinea el movimiento del joystick con la visual de la pantalla.
             const halfW = Iso.tileWidth / 2;
             const halfH = Iso.tileHeight / 2;
 
-            const rawDx = 0.5 * (joyX / halfW + joyY / halfH);
-            const rawDy = 0.5 * (joyY / halfH - joyX / halfW);
+            const targetDx = (joyX / halfW + joyY / halfH) / 2;
+            const targetDy = (joyY / halfH - joyX / halfW) / 2;
 
-            // 3. Normalizar la velocidad resultante en el mundo para que sea totalmente uniforme
-            const worldLen = Math.sqrt(rawDx * rawDx + rawDy * rawDy);
-            const dirX = worldLen > 0 ? (rawDx / worldLen) * this.speed : 0;
-            const dirY = worldLen > 0 ? (rawDy / worldLen) * this.speed : 0;
+            // 3. Normalizar el vector resultante en el mundo para evitar aceleraciones diagonales
+            const worldLen = Math.sqrt(targetDx * targetDx + targetDy * targetDy);
+            const moveX = worldLen > 0 ? (targetDx / worldLen) * this.speed : 0;
+            const moveY = worldLen > 0 ? (targetDy / worldLen) * this.speed : 0;
 
-            // 4. Movimiento independiente en X e Y con colisión en el mapa
-            const nextX = this.x + dirX;
-            if (mapManager ? mapManager.isWalkable(nextX, this.y) : true) {
+            // 4. Movimiento independiente con colisión en el mapa
+            const nextX = this.x + moveX;
+            if (!mapManager || mapManager.isWalkable(nextX, this.y)) {
                 this.x = nextX;
             }
 
-            const nextY = this.y + dirY;
-            if (mapManager ? mapManager.isWalkable(this.x, nextY) : true) {
+            const nextY = this.y + moveY;
+            if (!mapManager || mapManager.isWalkable(this.x, nextY)) {
                 this.y = nextY;
             }
 
-            // 5. Mapeo angular exacto basado en la pantalla (Arriba = 0°, Derecha = 90°, Abajo = 180°, Izquierda = 270°)
-            // - Arriba (0°): Rango de 60° (330° a 30°)
-            // - Derecha (90°): Rango de 120° (30° a 150°)
-            // - Abajo (180°): Rango de 60° (150° a 210°)
-            // - Izquierda (270°): Rango de 120° (210° a 330°)
+            // 5. Mapeo de ángulos exactos (Arriba = 0°)
+            // - Arriba (0°): 330° a 30° (Rango de 60°)
+            // - Derecha (90°): 30° a 150° (Rango de 120°)
+            // - Abajo (180°): 150° a 210° (Rango de 60°)
+            // - Izquierda (270°): 210° a 330° (Rango de 120°)
             let angle = Math.atan2(move.x, -move.y) * (180 / Math.PI);
             if (angle < 0) angle += 360;
 
@@ -114,7 +114,7 @@ export class Player {
         ctx.ellipse(renderX, renderY + 2, Iso.tileWidth / 2.8, Iso.tileHeight / 3.8, 0, 0, Math.PI * 2);
         ctx.fill();
 
-        // 2. Selección de la Fila (Row) según estado y dirección
+        // 2. Selección de Fila en el Sprite Sheet según estado y dirección
         let row = 0;
         const maxFrames = 6;
 
@@ -132,11 +132,10 @@ export class Player {
         const sx = safeFrame * this.frameWidth;
         const sy = row * this.frameHeight;
 
-        // Tamaños aplicados con la escala 1.6x
         const drawWidth = this.frameWidth * this.scale;
         const drawHeight = this.frameHeight * this.scale;
 
-        // 3. Renderizado con escala y efecto espejo automático si mira a la izquierda
+        // 3. Renderizado con escala y efecto espejo automático para la izquierda
         ctx.save();
         if (this.facing === 'left') {
             ctx.translate(renderX, renderY);
