@@ -15,16 +15,15 @@ class GameEngine {
         this.inputManager = new InputManager(this.canvas);
         this.mapManager = new MapManager();
         
-        // Spawn inicial del héroe en el centro del mapa 32x32 (16, 16)
         this.player = new Player(16.0, 16.0); 
 
-        // Crear una lista de objetos / menas de cristales repartidas por el mapa
+        // Menas de piedra con cristales repartidas por el mapa
         this.objects = [
-            new GameObject(18, 14, 'crystal_cluster'),
-            new GameObject(19, 15, 'crystal_cluster'),
-            new GameObject(12, 18, 'crystal_cluster'),
-            new GameObject(13, 20, 'crystal_cluster'),
-            new GameObject(22, 10, 'crystal_cluster')
+            new GameObject(18, 14, 'rock_ore'),
+            new GameObject(19, 15, 'rock_ore'),
+            new GameObject(12, 18, 'rock_ore'),
+            new GameObject(13, 20, 'rock_ore'),
+            new GameObject(22, 10, 'rock_ore')
         ];
         
         this.lastTime = performance.now();
@@ -38,16 +37,14 @@ class GameEngine {
     }
 
     update(dt) {
-        this.player.update(this.inputManager, this.mapManager);
+        this.player.update(this.inputManager, this.mapManager, this.objects);
     }
 
     render(timestamp) {
         this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
 
-        // 1. Obtener la posición en pantalla del héroe
         const playerScreen = Iso.toScreen(this.player.x, this.player.y);
 
-        // 2. Calcular los límites globales del mapa de 32x32 en píxeles de pantalla
         const cols = this.mapManager.cols;
         const rows = this.mapManager.rows;
         const halfW = Iso.tileWidth / 2;
@@ -63,11 +60,9 @@ class GameEngine {
         const minScreenY = Math.min(p00.y, pCols0.y, p0Rows.y, pColsRows.y) - halfH;
         const maxScreenY = Math.max(p00.y, pCols0.y, p0Rows.y, pColsRows.y) + halfH + 25;
 
-        // 3. Offset ideal para mantener al héroe en el centro de la pantalla
         let cameraOffsetX = (this.canvas.width / 2) - playerScreen.x;
         let cameraOffsetY = (this.canvas.height / 2) - playerScreen.y;
 
-        // 4. Clamping (Restricción de cámara en los bordes del mapa)
         const minOffsetX = this.canvas.width - maxScreenX;
         const maxOffsetX = -minScreenX;
         const minOffsetY = this.canvas.height - maxScreenY;
@@ -76,18 +71,24 @@ class GameEngine {
         cameraOffsetX = Math.max(minOffsetX, Math.min(maxOffsetX, cameraOffsetX));
         cameraOffsetY = Math.max(minOffsetY, Math.min(maxOffsetY, cameraOffsetY));
 
-        // 5. Renderizar Mapa base (Suelo / Tiles)
+        // 1. Renderizar el Mapa base (Suelo)
         this.mapManager.draw(this.ctx, cameraOffsetX, cameraOffsetY, timestamp);
 
-        // 6. Renderizar Objetos del Mapa (Cristales / Menas)
-        this.objects.forEach(obj => {
-            obj.draw(this.ctx, cameraOffsetX, cameraOffsetY);
+        // 2. Y-Sorting (Ordenamiento por profundidad de entidades y objetos)
+        // Agrupamos al jugador y a todas las menas en un array y los ordenamos por su posición (x + y)
+        const renderList = [
+            this.player,
+            ...this.objects
+        ];
+
+        renderList.sort((a, b) => (a.x + a.y) - (b.x + b.y));
+
+        // 3. Renderizar en orden correcto de profundidad
+        renderList.forEach(entity => {
+            entity.draw(this.ctx, cameraOffsetX, cameraOffsetY);
         });
 
-        // 7. Renderizar Jugador sincronizado con la cámara
-        this.player.draw(this.ctx, cameraOffsetX, cameraOffsetY);
-
-        // 8. Renderizar Controles Táctiles (UI fija)
+        // 4. Controles Táctiles (UI fija)
         this.inputManager.draw(this.ctx);
     }
 
