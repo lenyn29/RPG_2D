@@ -23,7 +23,7 @@ export class Player {
         this.animTimer = 0;
         this.currentFrame = 0;
         this.facing = 'down'; // 'down', 'up', 'left', 'right'
-        this.state = 'idle';  // 'idle', 'walk', 'attack'
+        this.state = 'idle';  // 'idle', 'walk'
     }
 
     update(inputManager, mapManager) {
@@ -32,29 +32,38 @@ export class Player {
         if (move.x !== 0 || move.y !== 0) {
             this.state = 'walk';
             
-            // Normalización del vector para evitar exceso de velocidad en diagonales
-            const length = Math.sqrt(move.x * move.x + move.y * move.y);
-            const dirX = length > 0 ? move.x / length : 0;
-            const dirY = length > 0 ? move.y / length : 0;
+            // 1. Transformación exacta de coordenadas de pantalla (Joystick) a Mundo Isométrico
+            const halfW = Iso.tileWidth / 2;
+            const halfH = Iso.tileHeight / 2;
 
-            // Movimiento independiente en X e Y con colisión
-            const nextX = this.x + dirX * this.speed;
+            const screenDx = move.x * this.speed;
+            const screenDy = move.y * this.speed;
+
+            const rawDx = (screenDx / halfW + screenDy / halfH) / 2;
+            const rawDy = (screenDy / halfH - screenDx / halfW) / 2;
+
+            // Normalización estricta para eliminar cualquier aceleración en diagonales
+            const len = Math.sqrt(rawDx * rawDx + rawDy * rawDy);
+            const dirX = len > 0 ? (rawDx / len) * this.speed : 0;
+            const dirY = len > 0 ? (rawDy / len) * this.speed : 0;
+
+            // 2. Movimiento independiente en X e Y con colisión
+            const nextX = this.x + dirX;
             if (mapManager ? mapManager.isWalkable(nextX, this.y) : true) {
                 this.x = nextX;
             }
 
-            const nextY = this.y + dirY * this.speed;
+            const nextY = this.y + dirY;
             if (mapManager ? mapManager.isWalkable(this.x, nextY) : true) {
                 this.y = nextY;
             }
 
-            // Mapeo angular exacto basado en el Joystick (Arriba = 0°):
-            // - Arriba (0°): Rango de 60° (330° a 30°)
+            // 3. Mapeo angular exacto (Arriba = 0°, Derecha = 90°, Abajo = 180°, Izquierda = 270°)
+            // - Arriba (0°): Rango de 60° (-30° a 30° / 330° a 30°)
             // - Derecha (90°): Rango de 120° (30° a 150°)
             // - Abajo (180°): Rango de 60° (150° a 210°)
             // - Izquierda (270°): Rango de 120° (210° a 330°)
-            const rad = Math.atan2(move.x, -move.y);
-            let angle = rad * (180 / Math.PI);
+            let angle = Math.atan2(move.x, -move.y) * (180 / Math.PI);
             if (angle < 0) angle += 360;
 
             if (angle >= 330 || angle <= 30) {
