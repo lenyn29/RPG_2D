@@ -5,13 +5,17 @@ export class Player {
         this.x = startX; 
         this.y = startY; 
         this.speed = 0.055; 
-        this.radius = 0.35; // Radio de colisión físico sólido del personaje
+        this.radius = 0.35; 
         
         this.sprite = new Image();
         this.sprite.src = 'assets/player.png';
         this.spriteLoaded = false;
         this.sprite.onload = () => {
             this.spriteLoaded = true;
+        };
+        this.sprite.onerror = () => {
+            // Si la imagen falla o no existe, permitimos renderizar un respaldo geométrico para que no crashee
+            this.spriteLoaded = false;
         };
 
         this.frameWidth = 48;  
@@ -24,17 +28,19 @@ export class Player {
         this.state = 'idle';  
     }
 
-    // Comprobación estricta de colisión circular contra el mapa y los objetos sólidos
     canMoveTo(newX, newY, mapManager, objects = []) {
-        if (mapManager && !mapManager.isWalkable(newX, newY)) return false;
+        if (mapManager && typeof mapManager.isWalkable === 'function') {
+            if (!mapManager.isWalkable(newX, newY)) return false;
+        }
 
-        for (let obj of objects) {
-            const dx = newX - obj.x;
-            const dy = newY - obj.y;
-            const dist = Math.sqrt(dx * dx + dy * dy);
-            // Bloqueo total si la distancia es menor a la suma de radios
-            if (dist < (this.radius + obj.radius)) {
-                return false;
+        if (objects && Array.isArray(objects)) {
+            for (let obj of objects) {
+                const dx = newX - obj.x;
+                const dy = newY - obj.y;
+                const dist = Math.sqrt(dx * dx + dy * dy);
+                if (dist < (this.radius + obj.radius)) {
+                    return false;
+                }
             }
         }
         return true;
@@ -57,11 +63,9 @@ export class Player {
             const moveX = worldLen > 0 ? (targetDx / worldLen) * this.speed : 0;
             const moveY = worldLen > 0 ? (targetDy / worldLen) * this.speed : 0;
 
-            // Movimiento independiente en X con colisión deslizante o bloqueo
             if (this.canMoveTo(this.x + moveX, this.y, mapManager, objects)) {
                 this.x += moveX;
             }
-            // Movimiento independiente en Y con colisión
             if (this.canMoveTo(this.x, this.y + moveY, mapManager, objects)) {
                 this.y += moveY;
             }
@@ -92,15 +96,9 @@ export class Player {
                 this.animTimer = 0;
             }
         }
-
-        const maxLimit = mapManager ? mapManager.cols - 0.1 : 31.9;
-        this.x = Math.max(0.1, Math.min(maxLimit, this.x));
-        this.y = Math.max(0.1, Math.min(maxLimit, this.y));
     }
 
     draw(ctx, cameraOffsetX, cameraOffsetY) {
-        if (!this.spriteLoaded) return;
-
         const screen = Iso.toScreen(this.x, this.y);
         const renderX = screen.x + cameraOffsetX;
         const renderY = screen.y + cameraOffsetY;
@@ -110,44 +108,55 @@ export class Player {
         ctx.ellipse(renderX, renderY + 2, Iso.tileWidth / 2.8, Iso.tileHeight / 3.8, 0, 0, Math.PI * 2);
         ctx.fill();
 
-        let row = 0;
-        const maxFrames = 6;
+        if (this.spriteLoaded && this.sprite.complete) {
+            let row = 0;
+            const maxFrames = 6;
 
-        if (this.state === 'idle') {
-            if (this.facing === 'down') row = 0;
-            else if (this.facing === 'right' || this.facing === 'left') row = 1;
-            else if (this.facing === 'up') row = 2;
-        } else if (this.state === 'walk') {
-            if (this.facing === 'down') row = 3;
-            else if (this.facing === 'right' || this.facing === 'left') row = 4;
-            else if (this.facing === 'up') row = 5;
-        }
+            if (this.state === 'idle') {
+                if (this.facing === 'down') row = 0;
+                else if (this.facing === 'right' || this.facing === 'left') row = 1;
+                else if (this.facing === 'up') row = 2;
+            } else if (this.state === 'walk') {
+                if (this.facing === 'down') row = 3;
+                else if (this.facing === 'right' || this.facing === 'left') row = 4;
+                else if (this.facing === 'up') row = 5;
+            }
 
-        const safeFrame = this.currentFrame % maxFrames;
-        const sx = safeFrame * this.frameWidth;
-        const sy = row * this.frameHeight;
+            const safeFrame = this.currentFrame % maxFrames;
+            const sx = safeFrame * this.frameWidth;
+            const sy = row * this.frameHeight;
 
-        const drawWidth = this.frameWidth * this.scale;
-        const drawHeight = this.frameHeight * this.scale;
+            const drawWidth = this.frameWidth * this.scale;
+            const drawHeight = this.frameHeight * this.scale;
 
-        ctx.save();
-        if (this.facing === 'left') {
-            ctx.translate(renderX, renderY);
-            ctx.scale(-1, 1);
-            ctx.drawImage(
-                this.sprite,
-                sx, sy, this.frameWidth, this.frameHeight,
-                -drawWidth / 2, -drawHeight + (Iso.tileHeight / 2),
-                drawWidth, drawHeight
-            );
+            ctx.save();
+            if (this.facing === 'left') {
+                ctx.translate(renderX, renderY);
+                ctx.scale(-1, 1);
+                ctx.drawImage(
+                    this.sprite,
+                    sx, sy, this.frameWidth, this.frameHeight,
+                    -drawWidth / 2, -drawHeight + (Iso.tileHeight / 2),
+                    drawWidth, drawHeight
+                );
+            } else {
+                ctx.drawImage(
+                    this.sprite,
+                    sx, sy, this.frameWidth, this.frameHeight,
+                    renderX - drawWidth / 2, renderY - drawHeight + (Iso.tileHeight / 2),
+                    drawWidth, drawHeight
+                );
+            }
+            ctx.restore();
         } else {
-            ctx.drawImage(
-                this.sprite,
-                sx, sy, this.frameWidth, this.frameHeight,
-                renderX - drawWidth / 2, renderY - drawHeight + (Iso.tileHeight / 2),
-                drawWidth, drawHeight
-            );
+            // Respaldo temporal si el sprite carga tarde: un círculo brillante para ubicar al héroe
+            ctx.fillStyle = '#00F0FF';
+            ctx.beginPath();
+            ctx.arc(renderX, renderY - 15, 12, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.strokeStyle = '#FFFFFF';
+            ctx.lineWidth = 2;
+            ctx.stroke();
         }
-        ctx.restore();
     }
 }
