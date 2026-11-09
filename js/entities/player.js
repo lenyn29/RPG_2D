@@ -5,7 +5,7 @@ export class Player {
         this.x = startX; 
         this.y = startY; 
         this.speed = 0.055; 
-        this.radius = 0.35; // Radio de colisión físico sólido
+        this.radius = 0.35; 
         
         this.sprite = new Image();
         this.sprite.src = 'assets/player.png';
@@ -21,21 +21,21 @@ export class Player {
         this.animTimer = 0;
         this.currentFrame = 0;
         this.facing = 'down'; 
-        this.state = 'idle';  
+        this.state = 'idle';  // 'idle', 'walk', 'attack'
 
-        // Variables de combate y daño
+        // Combate y daño
         this.isHurt = false;
         this.hurtTimer = 0;
         this.knockbackAngle = 0;
+        this.isAttacking = false;
+        this.attackCooldown = 0;
     }
 
-    // Comprobación de colisión contra mapa, objetos y enemigos
     canMoveTo(newX, newY, mapManager, objects = [], enemies = []) {
         if (mapManager && typeof mapManager.isWalkable === 'function') {
             if (!mapManager.isWalkable(newX, newY)) return false;
         }
 
-        // Colisión con objetos (rocas, árboles)
         if (objects && Array.isArray(objects)) {
             for (let obj of objects) {
                 const dx = newX - obj.x;
@@ -46,7 +46,6 @@ export class Player {
             }
         }
 
-        // Colisión con enemigos vivos
         if (enemies && Array.isArray(enemies)) {
             for (let enemy of enemies) {
                 if (enemy.state === 'dead') continue;
@@ -57,23 +56,49 @@ export class Player {
                 }
             }
         }
-
         return true;
     }
 
-    // Método para recibir daño del enemigo y activar retroceso
     takeDamage(attackerX, attackerY) {
-        if (this.isHurt) return; // Invulnerabilidad temporal mientras es golpeado
+        if (this.isHurt) return;
         this.isHurt = true;
-        this.hurtTimer = 25; // Duración del estado de daño en frames
+        this.hurtTimer = 25;
         this.knockbackAngle = Math.atan2(this.y - attackerY, this.x - attackerX);
     }
 
-    update(inputManager, mapManager, objects = [], enemies = []) {
-        let moveX = 0;
-        let moveY = 0;
+    // Ejecutar ataque contra los enemigos cercanos
+    performAttack(enemies = []) {
+        if (this.isAttacking || this.attackCooldown > 0 || this.isHurt) return;
 
-        // Si está recibiendo daño, se aplica el retroceso automáticamente
+        this.isAttacking = true;
+        this.state = 'attack';
+        this.currentFrame = 0;
+        this.animTimer = 0;
+        this.attackCooldown = 40; // Frames de espera entre ataques
+
+        const attackRange = 1.2; // Radio de alcance del golpe del héroe
+
+        enemies.forEach(enemy => {
+            if (enemy.state === 'dead') return;
+            const dx = enemy.x - this.x;
+            const dy = enemy.y - this.y;
+            const dist = Math.sqrt(dx * dx + dy * dy);
+
+            if (dist <= attackRange) {
+                // Aplicar daño y retroceso al slime
+                enemy.applyDamage(this.x, this.y);
+            }
+        });
+    }
+
+    update(inputManager, mapManager, objects = [], enemies = []) {
+        if (this.attackCooldown > 0) this.attackCooldown--;
+
+        // Comprobar si se pulsó el botón de ataque táctil
+        if (inputManager.isAttackTriggered()) {
+            this.performAttack(enemies);
+        }
+
         if (this.isHurt) {
             const kbSpeed = 0.04;
             const nextX = this.x + Math.cos(this.knockbackAngle) * kbSpeed;
@@ -85,10 +110,23 @@ export class Player {
             }
 
             this.hurtTimer--;
-            if (this.hurtTimer <= 0) {
-                this.isHurt = false;
+            if (this.hurtTimer <= 0) this.isHurt = false;
+            return;
+        }
+
+        // Si está ejecutando la animación de ataque, bloquea movimiento momentáneamente
+        if (this.isAttacking) {
+            this.animTimer += 0.25;
+            if (this.animTimer >= 1) {
+                this.currentFrame++;
+                if (this.currentFrame >= 6) { // Asumiendo 6 frames de ataque en el sprite del player
+                    this.isAttacking = false;
+                    this.state = 'idle';
+                    this.currentFrame = 0;
+                }
+                this.animTimer = 0;
             }
-            return; // Bloquea el movimiento del joystick durante el retroceso
+            return;
         }
 
         const move = inputManager.getMovementVector();
@@ -107,7 +145,6 @@ export class Player {
             const mX = worldLen > 0 ? (targetDx / worldLen) * this.speed : 0;
             const mY = worldLen > 0 ? (targetDy / worldLen) * this.speed : 0;
 
-            // Movimiento independiente en X e Y con colisión total
             if (this.canMoveTo(this.x + mX, this.y, mapManager, objects, enemies)) {
                 this.x += mX;
             }
@@ -153,16 +190,12 @@ export class Player {
         ctx.ellipse(renderX, renderY + 2, Iso.tileWidth / 2.8, Iso.tileHeight / 3.8, 0, 0, Math.PI * 2);
         ctx.fill();
 
-        // Efecto de parpadeo visual (Flicker) cuando recibe daño
         if (this.isHurt && Math.floor(this.hurtTimer / 3) % 2 === 0) {
-            return; // Salta un frame de dibujo para simular parpadeo de daño
+            return; 
         }
 
         if (this.spriteLoaded && this.sprite.complete) {
             let row = 0;
-            const maxFrames = 6;
-
-            // Si está dañado, usa la animación de idle (como se solicitó)
             const currentState = this.isHurt ? 'idle' : this.state;
 
             if (currentState === 'idle') {
@@ -173,9 +206,12 @@ export class Player {
                 if (this.facing === 'down') row = 3;
                 else if (this.facing === 'right' || this.facing === 'left') row = 4;
                 else if (this.facing === 'up') row = 5;
+            } else if (currentState === 'attack') {
+                // Fila de ataque en tu sprite sheet (ajusta si tu sprite tiene fila específica de ataque)
+                row = this.facing === 'up' ? 5 : (this.facing === 'down' ? 3 : 4); 
             }
 
-            const safeFrame = this.currentFrame % (currentState === 'idle' ? 4 : 6);
+            const safeFrame = this.currentFrame % 6;
             const sx = safeFrame * this.frameWidth;
             const sy = row * this.frameHeight;
 
