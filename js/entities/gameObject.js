@@ -4,12 +4,10 @@ export class GameObject {
     constructor(tileX, tileY, type = 'rock_ore') {
         this.x = tileX;
         this.y = tileY;
-        this.type = type; // 'rock_ore' o 'tree'
+        this.type = type; 
         
-        // Radio de colisión adaptado al tipo de objeto
-        this.radius = type === 'tree' ? 0.6 : 0.55; 
-        
-        // Desfase único para que cada árbol se mueva con el viento de forma independiente
+        // Radio de colisión sólido (0.5 baldosas bloquea el paso perfectamente)
+        this.radius = 0.5; 
         this.windOffset = tileX * 12.34 + tileY * 56.78;
     }
 
@@ -26,7 +24,6 @@ export class GameObject {
 
         if (this.type === 'rock_ore') {
             // --- MENA DE PIEDRA / ROCA SÓLIDA ---
-            // Base principal de la roca
             ctx.fillStyle = '#334155';
             ctx.beginPath();
             ctx.moveTo(renderX, renderY + 6);
@@ -39,7 +36,6 @@ export class GameObject {
             ctx.lineWidth = 1.5;
             ctx.stroke();
 
-            // Cara derecha (Sombra volumétrica)
             ctx.fillStyle = '#1E293B';
             ctx.beginPath();
             ctx.moveTo(renderX, renderY + 6);
@@ -49,7 +45,6 @@ export class GameObject {
             ctx.closePath();
             ctx.fill();
 
-            // Cara izquierda (Luz lateral)
             ctx.fillStyle = '#475569';
             ctx.beginPath();
             ctx.moveTo(renderX, renderY + 6);
@@ -59,7 +54,7 @@ export class GameObject {
             ctx.closePath();
             ctx.fill();
 
-            // Cristales de energía incrustados
+            // Cristales de energía
             ctx.fillStyle = '#00F0FF';
             ctx.beginPath();
             ctx.moveTo(renderX - 2, renderY - 18);
@@ -78,22 +73,18 @@ export class GameObject {
             ctx.fill();
 
         } else if (this.type === 'tree') {
-            // --- ÁRBOL CON ANIMACIÓN DE VIENTO ---
-            // Tronco del árbol
+            // --- ÁRBOL CON VIENTO ---
             ctx.fillStyle = '#78350f';
             ctx.fillRect(renderX - 4, renderY - 14, 8, 18);
 
-            // Oscilación del follaje simulando viento mediante función seno
             const windSpeed = 0.0025;
             const sway = Math.sin(timestamp * windSpeed + this.windOffset) * 4.0;
 
-            // Follaje inferior (Copa principal)
             ctx.fillStyle = '#065f46';
             ctx.beginPath();
             ctx.ellipse(renderX + sway, renderY - 36, 24, 18, 0, 0, Math.PI * 2);
             ctx.fill();
 
-            // Follaje superior (Brillo de copa)
             ctx.fillStyle = '#10b981';
             ctx.beginPath();
             ctx.ellipse(renderX + (sway * 0.7), renderY - 44, 16, 12, 0, 0, Math.PI * 2);
