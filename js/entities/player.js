@@ -20,10 +20,11 @@ export class Player {
         
         this.animTimer = 0;
         this.currentFrame = 0;
-        this.facing = 'down'; 
-        this.state = 'idle';  // 'idle', 'walk', 'attack'
+        this.facing = 'down'; // 'down', 'up', 'left', 'right'
+        this.state = 'idle';  // 'idle', 'walk', 'attack', 'dead'
 
-        // Combate y daño
+        // Combate, vida y daño
+        this.hp = 100;
         this.isHurt = false;
         this.hurtTimer = 0;
         this.knockbackAngle = 0;
@@ -60,23 +61,32 @@ export class Player {
     }
 
     takeDamage(attackerX, attackerY) {
-        if (this.isHurt) return;
+        if (this.isHurt || this.state === 'dead') return;
+        this.hp -= 15; // Daño recibido
+        
+        if (this.hp <= 0) {
+            this.hp = 0;
+            this.state = 'dead';
+            this.currentFrame = 0;
+            this.animTimer = 0;
+            return;
+        }
+
         this.isHurt = true;
         this.hurtTimer = 25;
         this.knockbackAngle = Math.atan2(this.y - attackerY, this.x - attackerX);
     }
 
-    // Ejecutar ataque contra los enemigos cercanos
     performAttack(enemies = []) {
-        if (this.isAttacking || this.attackCooldown > 0 || this.isHurt) return;
+        if (this.isAttacking || this.attackCooldown > 0 || this.isHurt || this.state === 'dead') return;
 
         this.isAttacking = true;
         this.state = 'attack';
         this.currentFrame = 0;
         this.animTimer = 0;
-        this.attackCooldown = 40; // Frames de espera entre ataques
+        this.attackCooldown = 35; // Cooldown de ataque
 
-        const attackRange = 1.2; // Radio de alcance del golpe del héroe
+        const attackRange = 1.3; // Rango de alcance del golpe
 
         enemies.forEach(enemy => {
             if (enemy.state === 'dead') return;
@@ -85,16 +95,16 @@ export class Player {
             const dist = Math.sqrt(dx * dx + dy * dy);
 
             if (dist <= attackRange) {
-                // Aplicar daño y retroceso al slime
                 enemy.applyDamage(this.x, this.y);
             }
         });
     }
 
     update(inputManager, mapManager, objects = [], enemies = []) {
+        if (this.state === 'dead') return; // Si está muerto, no procesa acciones
+
         if (this.attackCooldown > 0) this.attackCooldown--;
 
-        // Comprobar si se pulsó el botón de ataque táctil
         if (inputManager.isAttackTriggered()) {
             this.performAttack(enemies);
         }
@@ -114,12 +124,12 @@ export class Player {
             return;
         }
 
-        // Si está ejecutando la animación de ataque, bloquea movimiento momentáneamente
+        // Animación de ataque (exactamente 4 frames en filas 6, 7 y 8)
         if (this.isAttacking) {
             this.animTimer += 0.25;
             if (this.animTimer >= 1) {
                 this.currentFrame++;
-                if (this.currentFrame >= 6) { // Asumiendo 6 frames de ataque en el sprite del player
+                if (this.currentFrame >= 4) {
                     this.isAttacking = false;
                     this.state = 'idle';
                     this.currentFrame = 0;
@@ -196,22 +206,31 @@ export class Player {
 
         if (this.spriteLoaded && this.sprite.complete) {
             let row = 0;
+            let maxFrames = 6;
             const currentState = this.isHurt ? 'idle' : this.state;
 
-            if (currentState === 'idle') {
+            if (currentState === 'dead') {
+                row = 9; // Fila 9: Muerte
+                maxFrames = 6; // O los frames que tenga tu sprite de muerte
+            } else if (currentState === 'idle') {
                 if (this.facing === 'down') row = 0;
                 else if (this.facing === 'right' || this.facing === 'left') row = 1;
                 else if (this.facing === 'up') row = 2;
+                maxFrames = 6;
             } else if (currentState === 'walk') {
                 if (this.facing === 'down') row = 3;
                 else if (this.facing === 'right' || this.facing === 'left') row = 4;
                 else if (this.facing === 'up') row = 5;
+                maxFrames = 6;
             } else if (currentState === 'attack') {
-                // Fila de ataque en tu sprite sheet (ajusta si tu sprite tiene fila específica de ataque)
-                row = this.facing === 'up' ? 5 : (this.facing === 'down' ? 3 : 4); 
+                // Filas 6, 7 y 8 con EXACTAMENTE 4 frames
+                if (this.facing === 'down') row = 6;
+                else if (this.facing === 'right' || this.facing === 'left') row = 7;
+                else if (this.facing === 'up') row = 8;
+                maxFrames = 4;
             }
 
-            const safeFrame = this.currentFrame % 6;
+            const safeFrame = this.currentFrame % maxFrames;
             const sx = safeFrame * this.frameWidth;
             const sy = row * this.frameHeight;
 
