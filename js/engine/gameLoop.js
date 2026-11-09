@@ -17,13 +17,15 @@ class GameEngine {
         
         this.player = new Player(16.0, 16.0); 
 
-        // Menas de piedra con cristales repartidas por el mapa
+        // Objetos distribuidos en el mapa (Rocas y Árboles)
         this.objects = [
             new GameObject(18, 14, 'rock_ore'),
             new GameObject(19, 15, 'rock_ore'),
             new GameObject(12, 18, 'rock_ore'),
-            new GameObject(13, 20, 'rock_ore'),
-            new GameObject(22, 10, 'rock_ore')
+            new GameObject(13, 20, 'tree'),
+            new GameObject(22, 10, 'tree'),
+            new GameObject(14, 12, 'tree'),
+            new GameObject(10, 10, 'rock_ore')
         ];
         
         this.lastTime = performance.now();
@@ -75,7 +77,6 @@ class GameEngine {
         this.mapManager.draw(this.ctx, cameraOffsetX, cameraOffsetY, timestamp);
 
         // 2. Y-Sorting (Ordenamiento por profundidad de entidades y objetos)
-        // Agrupamos al jugador y a todas las menas en un array y los ordenamos por su posición (x + y)
         const renderList = [
             this.player,
             ...this.objects
@@ -83,9 +84,9 @@ class GameEngine {
 
         renderList.sort((a, b) => (a.x + a.y) - (b.x + b.y));
 
-        // 3. Renderizar en orden correcto de profundidad
+        // 3. Renderizar en orden correcto pasando el timestamp para las animaciones
         renderList.forEach(entity => {
-            entity.draw(this.ctx, cameraOffsetX, cameraOffsetY);
+            entity.draw(this.ctx, cameraOffsetX, cameraOffsetY, timestamp);
         });
 
         // 4. Controles Táctiles (UI fija)
