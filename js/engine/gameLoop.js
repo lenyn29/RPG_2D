@@ -11,10 +11,11 @@ class GameEngine {
         this.resizeCanvas();
         window.addEventListener('resize', () => this.resizeCanvas());
 
-        // Inicializar Gestores y Jugador en posición segura del mapa
         this.inputManager = new InputManager(this.canvas);
         this.mapManager = new MapManager();
-        this.player = new Player(3.5, 3.5); 
+        
+        // Posición inicial segura en el centro del mapa (zona caminable)
+        this.player = new Player(4.0, 4.0); 
         
         this.lastTime = performance.now();
         this.loop = this.loop.bind(this);
@@ -27,7 +28,6 @@ class GameEngine {
     }
 
     update(dt) {
-        // Enviar mapManager para procesar colisiones
         this.player.update(this.inputManager, this.mapManager);
     }
 
@@ -37,13 +37,13 @@ class GameEngine {
         const cameraOffsetX = this.canvas.width / 2;
         const cameraOffsetY = this.canvas.height / 3.5;
 
-        // 1. Dibujar Terreno
+        // 1. Renderizar Mapa
         this.mapManager.draw(this.ctx, cameraOffsetX, cameraOffsetY);
 
-        // 2. Dibujar Jugador
+        // 2. Renderizar Jugador
         this.player.draw(this.ctx, cameraOffsetX, cameraOffsetY);
 
-        // 3. Dibujar UI Táctil
+        // 3. Renderizar Controles Táctiles
         this.inputManager.draw(this.ctx);
     }
 
