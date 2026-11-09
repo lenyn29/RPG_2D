@@ -9,7 +9,6 @@ export class MapManager {
         this.renderDistance = 2; 
     }
 
-    // Generador determinista simple basado en semilla
     _getChunkSeed(chunkX, chunkY) {
         let n = chunkX * 374761393 + chunkY * 668265263 + this.seed;
         n = (n ^ (n >> 13)) * 1274126177;
@@ -32,17 +31,15 @@ export class MapManager {
                 const worldX = chunkX * this.chunkSize + x;
                 const worldY = chunkY * this.chunkSize + y;
 
-                // Definir tipo de suelo procedural seguro
                 const noise = Math.sin(worldX * 0.2) * Math.cos(worldY * 0.2);
                 const tileType = noise > 0.3 ? 1 : 0; // 0: Pradera, 1: Sendero
                 tiles[y][x] = tileType;
 
-                // Generar rocas o árboles de forma procedural usando la semilla del chunk
                 if (tileType === 0) {
                     const randomVal = Math.sin(worldX * 12.9898 + worldY * 78.233 + chunkSeed) * 43758.5453;
                     const cleanRandom = randomVal - Math.floor(randomVal);
 
-                    if (cleanRandom < 0.07) { // 7% de probabilidad por tile de pradera
+                    if (cleanRandom < 0.07) {
                         const objType = cleanRandom < 0.035 ? 'rock_ore' : 'tree';
                         objects.push(new GameObject(worldX + 0.5, worldY + 0.5, objType));
                     }
@@ -60,7 +57,6 @@ export class MapManager {
         const playerChunkX = Math.floor(playerX / this.chunkSize);
         const playerChunkY = Math.floor(playerY / this.chunkSize);
 
-        // Generar chunks alrededor del jugador
         for (let y = -this.renderDistance; y <= this.renderDistance; y++) {
             for (let x = -this.renderDistance; x <= this.renderDistance; x++) {
                 this._getOrCreateChunk(playerChunkX + x, playerChunkY + y);
@@ -72,7 +68,7 @@ export class MapManager {
         let allObjects = [];
         for (let chunk of this.chunks.values()) {
             if (chunk && chunk.objects) {
-                allObjects = allObjects.push ? allObjects.concat(chunk.objects) : [];
+                allObjects = allObjects.concat(chunk.objects);
             }
         }
         return allObjects;
@@ -82,7 +78,7 @@ export class MapManager {
         return true; 
     }
 
-    draw(ctx, cameraOffsetX, cameraOffsetY, timestamp) {
+    draw(ctx, cameraOffsetX, cameraOffsetY, timestamp = 0) {
         for (let chunk of this.chunks.values()) {
             if (!chunk || !chunk.tiles) continue;
 
@@ -96,12 +92,12 @@ export class MapManager {
                     const renderX = screen.x + cameraOffsetX;
                     const renderY = screen.y + cameraOffsetY;
 
-                    // Culling de pantalla para alto rendimiento
                     if (renderX < -Iso.tileWidth * 2 || renderX > ctx.canvas.width + Iso.tileWidth * 2 ||
                         renderY < -Iso.tileHeight * 2 || renderY > ctx.canvas.height + Iso.tileHeight * 2) {
                         continue;
                     }
 
+                    // 1. Dibujar el cuerpo del tile SIN líneas de borde (suelo continuo)
                     ctx.beginPath();
                     ctx.moveTo(renderX, renderY - Iso.tileHeight / 2);
                     ctx.lineTo(renderX + Iso.tileWidth / 2, renderY);
@@ -109,11 +105,32 @@ export class MapManager {
                     ctx.lineTo(renderX - Iso.tileWidth / 2, renderY);
                     ctx.closePath();
 
-                    ctx.fillStyle = tileType === 1 ? '#475569' : '#1e293b';
+                    // Colores de pradera orgánica vs sendero de tierra
+                    ctx.fillStyle = tileType === 1 ? '#334155' : '#0f291e'; 
                     ctx.fill();
-                    ctx.strokeStyle = '#0f172a';
-                    ctx.lineWidth = 1;
-                    ctx.stroke();
+
+                    // 2. Si es pradera (tileType === 0), añadimos mechones de hierba con animación de viento
+                    if (tileType === 0) {
+                        const grassSeed = worldX * 33.3 + worldY * 77.7;
+                        const windSpeed = 0.003;
+                        const grassSway = Math.sin(timestamp * windSpeed + grassSeed) * 2.5;
+
+                        ctx.strokeStyle = '#10b981'; // Color verde hierba brillante
+                        ctx.lineWidth = 1.2;
+                        ctx.lineCap = 'round';
+
+                        // Mechón izquierdo de hierba
+                        ctx.beginPath();
+                        ctx.moveTo(renderX - 6, renderY);
+                        ctx.quadraticCurveTo(renderX - 6 + grassSway, renderY - 6, renderX - 4 + grassSway, renderY - 9);
+                        ctx.stroke();
+
+                        // Mechón derecho de hierba
+                        ctx.beginPath();
+                        ctx.moveTo(renderX + 4, renderY + 2);
+                        ctx.quadraticCurveTo(renderX + 4 + grassSway, renderY - 4, renderX + 6 + grassSway, renderY - 7);
+                        ctx.stroke();
+                    }
                 }
             }
         }
