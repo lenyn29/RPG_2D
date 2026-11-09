@@ -6,7 +6,7 @@ export class Enemy {
         this.y = startY;
         this.type = type;
         this.speed = 0.02; 
-        this.radius = 0.35; // Radio de colisión sólido
+        this.radius = 0.35; 
         
         this.sprite = new Image();
         this.sprite.src = 'assets/slime.png';
@@ -19,6 +19,11 @@ export class Enemy {
         this.frameHeight = 32;
         this.scale = 1.6;
 
+        // Combate y Estadísticas del Slime (10 HP)
+        this.maxHp = 10;
+        this.hp = 10;
+        this.respawnTimer = 0; // Contador de reaparición (10 segundos)
+
         this.animTimer = 0;
         this.currentFrame = 0;
         this.facing = 'down'; 
@@ -29,32 +34,34 @@ export class Enemy {
         this.attackCooldown = 0;
     }
 
-    // Comprobación estricta de colisión del Slime (incluyendo al jugador y objetos)
     canMoveTo(newX, newY, mapManager, objects = [], player = null) {
         if (mapManager && !mapManager.isWalkable(newX, newY)) return false;
 
-        // Colisión con objetos (rocas, árboles)
         for (let obj of objects) {
             const dx = newX - obj.x;
             const dy = newY - obj.y;
-            if (Math.sqrt(dx * dx + dy * dy) < (this.radius + obj.radius)) {
-                return false;
-            }
+            if (Math.sqrt(dx * dx + dy * dy) < (this.radius + obj.radius)) return false;
         }
 
-        // Colisión con el héroe (el slime no puede atravesar al jugador)
-        if (player) {
+        if (player && player.state !== 'dead') {
             const dx = newX - player.x;
             const dy = newY - player.y;
-            if (Math.sqrt(dx * dx + dy * dy) < (this.radius + player.radius)) {
-                return false;
-            }
+            if (Math.sqrt(dx * dx + dy * dy) < (this.radius + player.radius)) return false;
         }
 
         return true;
     }
 
+    applyDamage(sourceX, sourceY) {
+        if (this.state === 'dead') return;
+        this.state = 'hurt';
+        this.currentFrame = 0;
+        this.animTimer = 0;
+        this.moveAngle = Math.atan2(this.y - sourceY, this.x - sourceX);
+    }
+
     update(mapManager, objects = [], player = null) {
+        // Si está muerto, solo descuenta el tiempo de respawn
         if (this.state === 'dead') return;
 
         if (this.attackCooldown > 0) this.attackCooldown--;
@@ -63,7 +70,7 @@ export class Enemy {
         let pdx = 0;
         let pdy = 0;
 
-        if (player) {
+        if (player && player.state !== 'dead') {
             pdx = player.x - this.x;
             pdy = player.y - this.y;
             targetDist = Math.sqrt(pdx * pdx + pdy * pdy);
@@ -87,17 +94,12 @@ export class Enemy {
                 this.x = nextX;
                 this.y = nextY;
             }
-
-            // Si el salto de ataque toca al jugador, le inflige daño y retroceso
-            if (player && targetDist < 0.8) {
-                player.takeDamage(this.x, this.y);
-            }
-        } else if (player && targetDist < 1.4 && this.attackCooldown === 0) {
+        } else if (player && player.state !== 'dead' && targetDist < 1.4 && this.attackCooldown === 0) {
             this.state = 'attack';
             this.currentFrame = 0;
             this.animTimer = 0;
             this.attackCooldown = 90;
-        } else if (player && targetDist < 4.5) {
+        } else if (player && player.state !== 'dead' && targetDist < 4.5) {
             this.state = 'walk';
             const angleToPlayer = Math.atan2(pdy, pdx);
             const nextX = this.x + Math.cos(angleToPlayer) * this.speed;
@@ -107,7 +109,6 @@ export class Enemy {
                 this.x = nextX;
                 this.y = nextY;
             }
-
             this.updateFacing(angleToPlayer);
         } else {
             this.changeDirTimer += 0.02;
@@ -125,7 +126,6 @@ export class Enemy {
                     this.x = nextX;
                     this.y = nextY;
                 }
-
                 this.updateFacing(this.moveAngle);
             }
         }
@@ -164,14 +164,9 @@ export class Enemy {
         }
     }
 
-    applyDamage(sourceX, sourceY) {
-        this.state = 'hurt';
-        this.currentFrame = 0;
-        this.animTimer = 0;
-        this.moveAngle = Math.atan2(this.y - sourceY, this.x - sourceX);
-    }
-
     draw(ctx, cameraOffsetX, cameraOffsetY) {
+        if (this.state === 'dead') return; // No se dibuja mientras espera respawn
+
         const screen = Iso.toScreen(this.x, this.y);
         const renderX = screen.x + cameraOffsetX;
         const renderY = screen.y + cameraOffsetY;
@@ -200,8 +195,6 @@ export class Enemy {
                 if (this.facing === 'down') row = 9;
                 else if (this.facing === 'right' || this.facing === 'left') row = 10;
                 else if (this.facing === 'up') row = 11;
-            } else if (this.state === 'dead') {
-                row = 12;
             }
 
             const sx = this.currentFrame * this.frameWidth;
@@ -214,19 +207,9 @@ export class Enemy {
             if (this.facing === 'left') {
                 ctx.translate(renderX, renderY);
                 ctx.scale(-1, 1);
-                ctx.drawImage(
-                    this.sprite,
-                    sx, sy, this.frameWidth, this.frameHeight,
-                    -drawWidth / 2, -drawHeight + (Iso.tileHeight / 2),
-                    drawWidth, drawHeight
-                );
+                ctx.drawImage(this.sprite, sx, sy, this.frameWidth, this.frameHeight, -drawWidth / 2, -drawHeight + (Iso.tileHeight / 2), drawWidth, drawHeight);
             } else {
-                ctx.drawImage(
-                    this.sprite,
-                    sx, sy, this.frameWidth, this.frameHeight,
-                    renderX - drawWidth / 2, renderY - drawHeight + (Iso.tileHeight / 2),
-                    drawWidth, drawHeight
-                );
+                ctx.drawImage(this.sprite, sx, sy, this.frameWidth, this.frameHeight, renderX - drawWidth / 2, renderY - drawHeight + (Iso.tileHeight / 2), drawWidth, drawHeight);
             }
             ctx.restore();
         } else {
@@ -235,5 +218,19 @@ export class Enemy {
             ctx.arc(renderX, renderY - 10, 10, 0, Math.PI * 2);
             ctx.fill();
         }
+
+        // Barra de Vida miniatura sobre el Slime
+        this.drawHealthBar(ctx, renderX, renderY - 35);
+    }
+
+    drawHealthBar(ctx, x, y) {
+        const barWidth = 30;
+        const barHeight = 4;
+        ctx.fillStyle = 'rgba(0, 0, 0, 0.6)';
+        ctx.fillRect(x - barWidth / 2, y, barWidth, barHeight);
+
+        const hpRatio = Math.max(0, this.hp / this.maxHp);
+        ctx.fillStyle = '#ef4444'; // Rojo slime
+        ctx.fillRect(x - barWidth / 2, y, barWidth * hpRatio, barHeight);
     }
 }
