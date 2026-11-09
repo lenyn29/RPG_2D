@@ -1,11 +1,14 @@
 import { Iso } from '../engine/isometric.js';
 
 export class Enemy {
-    constructor(startX, startY, type = 'slime') {
+    constructor(startX, startY, type = 'slime', level = 1) {
+        this.spawnX = startX; // Posición fija de respawn original
+        this.spawnY = startY;
         this.x = startX;
         this.y = startY;
         this.type = type;
-        this.speed = 0.02; 
+        this.level = level; // Nivel del enemigo (ej. Slime lv 2)
+        this.speed = 0.018; 
         this.radius = 0.35; 
         
         this.sprite = new Image();
@@ -17,16 +20,16 @@ export class Enemy {
         this.frameHeight = 32;
         this.scale = 1.6;
 
-        // Nombre, Nivel y Estadísticas (10 HP)
-        this.name = "Slime lv 2";
+        this.name = `Slime lv ${this.level}`;
         this.maxHp = 10;
         this.hp = 10;
         this.respawnTimer = 0; 
+        this.fadeTimer = 0; // Temporizador para desvanecer el cuerpo (3s)
 
         this.animTimer = 0;
         this.currentFrame = 0;
         this.facing = 'down'; 
-        this.state = 'idle';  
+        this.state = 'idle';  // 'idle', 'walk', 'attack', 'hurt', 'flee', 'dead'
         
         this.changeDirTimer = 0;
         this.moveAngle = Math.random() * Math.PI * 2;
@@ -61,12 +64,12 @@ export class Enemy {
 
     update(mapManager, objects = [], player = null) {
         if (this.state === 'dead') {
-            // Animación de muerte lenta y dramática para el slime
-            this.animTimer += 0.06;
+            this.animTimer += 0.05;
             if (this.animTimer >= 1) {
                 this.currentFrame++;
                 if (this.currentFrame >= 5) {
-                    this.currentFrame = 4; // Mantener último frame
+                    this.currentFrame = 4;
+                    if (this.fadeTimer < 180) this.fadeTimer++; // Desvanecer cuerpo a los 3s
                 }
                 this.animTimer = 0;
             }
@@ -85,7 +88,26 @@ export class Enemy {
             targetDist = Math.sqrt(pdx * pdx + pdy * pdy);
         }
 
-        if (this.state === 'hurt') {
+        // --- PERSONALIDAD E INTELIGENCIA ARTIFICIAL ---
+        // 1. Instinto de huida si la vida baja del 50%
+        if (this.hp < (this.maxHp / 2)) {
+            this.state = 'flee';
+        }
+
+        // 2. Si el héroe tiene mayor nivel, el slime lo ignora por completo
+        const playerIsHigherLevel = player && (player.level > this.level);
+
+        if (this.state === 'flee' && player) {
+            // Huir en dirección contraria al jugador
+            const fleeAngle = Math.atan2(this.y - player.y, this.x - player.x);
+            const nextX = this.x + Math.cos(fleeAngle) * (this.speed * 1.2);
+            const nextY = this.y + Math.sin(fleeAngle) * (this.speed * 1.2);
+            if (this.canMoveTo(nextX, nextY, mapManager, objects, player)) {
+                this.x = nextX;
+                this.y = nextY;
+            }
+            this.updateFacing(fleeAngle);
+        } else if (this.state === 'hurt') {
             const pushBackSpeed = 0.03;
             const nextX = this.x - Math.cos(this.moveAngle) * pushBackSpeed;
             const nextY = this.y - Math.sin(this.moveAngle) * pushBackSpeed;
@@ -103,12 +125,14 @@ export class Enemy {
                 this.x = nextX;
                 this.y = nextY;
             }
-        } else if (player && player.state !== 'dead' && targetDist < 1.4 && this.attackCooldown === 0) {
+        } else if (player && player.state !== 'dead' && !playerIsHigherLevel && targetDist < 0.9 && this.attackCooldown === 0) {
+            // Solo ataca si está DEMASIADO CERCA (distancia < 0.9) y el héroe no es de mayor nivel
             this.state = 'attack';
             this.currentFrame = 0;
             this.animTimer = 0;
             this.attackCooldown = 90;
-        } else if (player && player.state !== 'dead' && targetDist < 4.5) {
+        } else if (player && player.state !== 'dead' && !playerIsHigherLevel && targetDist < 3.5) {
+            // Persigue solo si estás cerca y tienes nivel igual o menor
             this.state = 'walk';
             const angleToPlayer = Math.atan2(pdy, pdx);
             const nextX = this.x + Math.cos(angleToPlayer) * this.speed;
@@ -120,6 +144,7 @@ export class Enemy {
             }
             this.updateFacing(angleToPlayer);
         } else {
+            // Patrulla errante normal
             this.changeDirTimer += 0.02;
             if (this.changeDirTimer > 3) {
                 this.moveAngle = Math.random() * Math.PI * 2;
@@ -143,7 +168,7 @@ export class Enemy {
         let animSpeed = 0.12;
 
         if (this.state === 'idle') { maxFrames = 4; animSpeed = 0.1; }
-        else if (this.state === 'walk') { maxFrames = 6; animSpeed = 0.18; }
+        else if (this.state === 'walk' || this.state === 'flee') { maxFrames = 6; animSpeed = 0.18; }
         else if (this.state === 'attack') { maxFrames = 7; animSpeed = 0.22; }
         else if (this.state === 'hurt') { maxFrames = 3; animSpeed = 0.15; }
 
@@ -175,23 +200,33 @@ export class Enemy {
         const renderX = screen.x + cameraOffsetX;
         const renderY = screen.y + cameraOffsetY;
 
-        ctx.fillStyle = 'rgba(0, 0, 0, 0.4)';
-        ctx.beginPath();
-        ctx.ellipse(renderX, renderY + 2, Iso.tileWidth / 3.2, Iso.tileHeight / 4.2, 0, 0, Math.PI * 2);
-        ctx.fill();
+        const isFadedOut = (this.state === 'dead' && this.fadeTimer >= 180);
 
-        if (this.spriteLoaded && this.sprite.complete) {
+        // Charco de sangre al morir
+        if (this.state === 'dead') {
+            ctx.fillStyle = 'rgba(185, 28, 28, 0.7)';
+            ctx.beginPath();
+            ctx.ellipse(renderX, renderY + 4, Iso.tileWidth / 2.8, Iso.tileHeight / 3.8, 0, 0, Math.PI * 2);
+            ctx.fill();
+        } else {
+            ctx.fillStyle = 'rgba(0, 0, 0, 0.4)';
+            ctx.beginPath();
+            ctx.ellipse(renderX, renderY + 2, Iso.tileWidth / 3.2, Iso.tileHeight / 4.2, 0, 0, Math.PI * 2);
+            ctx.fill();
+        }
+
+        if (!isFadedOut && this.spriteLoaded && this.sprite.complete) {
             let row = 0;
             let maxFrames = 6;
 
             if (this.state === 'dead') {
-                row = 12; // Fila de muerte del slime
+                row = 12; 
                 maxFrames = 5;
             } else if (this.state === 'idle') {
                 if (this.facing === 'down') row = 0;
                 else if (this.facing === 'right' || this.facing === 'left') row = 1;
                 else if (this.facing === 'up') row = 2;
-            } else if (this.state === 'walk') {
+            } else if (this.state === 'walk' || this.state === 'flee') {
                 if (this.facing === 'down') row = 3;
                 else if (this.facing === 'right' || this.facing === 'left') row = 4;
                 else if (this.facing === 'up') row = 5;
@@ -221,15 +256,16 @@ export class Enemy {
                 ctx.drawImage(this.sprite, sx, sy, this.frameWidth, this.frameHeight, renderX - drawWidth / 2, renderY - drawHeight + (Iso.tileHeight / 2), drawWidth, drawHeight);
             }
             ctx.restore();
-        } else {
+        } else if (!isFadedOut) {
             ctx.fillStyle = '#10B981';
             ctx.beginPath();
             ctx.arc(renderX, renderY - 10, 10, 0, Math.PI * 2);
             ctx.fill();
         }
 
-        // Nombre y Barra de Vida del Slime
-        this.drawInfoBox(ctx, renderX, renderY - 45);
+        if (this.state !== 'dead') {
+            this.drawInfoBox(ctx, renderX, renderY - 45);
+        }
     }
 
     drawInfoBox(ctx, x, y) {
