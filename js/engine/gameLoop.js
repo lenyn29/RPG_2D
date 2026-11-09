@@ -1,5 +1,4 @@
 import { Player } from '../entities/player.js';
-import { GameObject } from '../entities/gameObject.js';
 import { Iso } from './isometric.js';
 import { InputManager } from './inputManager.js';
 import { MapManager } from './mapManager.js';
@@ -13,20 +12,12 @@ class GameEngine {
         window.addEventListener('resize', () => this.resizeCanvas());
 
         this.inputManager = new InputManager(this.canvas);
-        this.mapManager = new MapManager();
         
-        this.player = new Player(16.0, 16.0); 
-
-        // Objetos distribuidos en el mapa (Rocas y Árboles)
-        this.objects = [
-            new GameObject(18, 14, 'rock_ore'),
-            new GameObject(19, 15, 'rock_ore'),
-            new GameObject(12, 18, 'rock_ore'),
-            new GameObject(13, 20, 'tree'),
-            new GameObject(22, 10, 'tree'),
-            new GameObject(14, 12, 'tree'),
-            new GameObject(10, 10, 'rock_ore')
-        ];
+        // Inicializar Mapa Infinito con una semilla fija (ej. 9999)
+        this.mapManager = new MapManager(9999);
+        
+        // Posición inicial del héroe (ej. coordenada 0,0 en el mundo infinito)
+        this.player = new Player(0.0, 0.0); 
         
         this.lastTime = performance.now();
         this.loop = this.loop.bind(this);
@@ -39,7 +30,14 @@ class GameEngine {
     }
 
     update(dt) {
-        this.player.update(this.inputManager, this.mapManager, this.objects);
+        // 1. Actualizar chunks según la posición actual del jugador
+        this.mapManager.update(this.player.x, this.player.y);
+
+        // 2. Obtener los objetos activos de los chunks cercanos para las colisiones
+        const activeObjects = this.mapManager.getActiveObjects();
+
+        // 3. Actualizar jugador pasando los objetos y el mapa
+        this.player.update(this.inputManager, this.mapManager, activeObjects);
     }
 
     render(timestamp) {
@@ -47,44 +45,24 @@ class GameEngine {
 
         const playerScreen = Iso.toScreen(this.player.x, this.player.y);
 
-        const cols = this.mapManager.cols;
-        const rows = this.mapManager.rows;
-        const halfW = Iso.tileWidth / 2;
-        const halfH = Iso.tileHeight / 2;
-
-        const p00 = Iso.toScreen(0, 0);
-        const pCols0 = Iso.toScreen(cols, 0);
-        const p0Rows = Iso.toScreen(0, rows);
-        const pColsRows = Iso.toScreen(cols, rows);
-
-        const minScreenX = Math.min(p00.x, pCols0.x, p0Rows.x, pColsRows.x) - halfW;
-        const maxScreenX = Math.max(p00.x, pCols0.x, p0Rows.x, pColsRows.x) + halfW;
-        const minScreenY = Math.min(p00.y, pCols0.y, p0Rows.y, pColsRows.y) - halfH;
-        const maxScreenY = Math.max(p00.y, pCols0.y, p0Rows.y, pColsRows.y) + halfH + 25;
-
+        // Cámara centrada estrictamente en el jugador (mundo infinito)
         let cameraOffsetX = (this.canvas.width / 2) - playerScreen.x;
         let cameraOffsetY = (this.canvas.height / 2) - playerScreen.y;
 
-        const minOffsetX = this.canvas.width - maxScreenX;
-        const maxOffsetX = -minScreenX;
-        const minOffsetY = this.canvas.height - maxScreenY;
-        const maxOffsetY = -minScreenY;
-
-        cameraOffsetX = Math.max(minOffsetX, Math.min(maxOffsetX, cameraOffsetX));
-        cameraOffsetY = Math.max(minOffsetY, Math.min(maxOffsetY, cameraOffsetY));
-
-        // 1. Renderizar el Mapa base (Suelo)
+        // 1. Renderizar Suelo (Chunks visibles)
         this.mapManager.draw(this.ctx, cameraOffsetX, cameraOffsetY, timestamp);
 
-        // 2. Y-Sorting (Ordenamiento por profundidad de entidades y objetos)
+        // 2. Obtener objetos cercanos para Y-Sorting junto al jugador
+        const activeObjects = this.mapManager.getActiveObjects();
         const renderList = [
             this.player,
-            ...this.objects
+            ...activeObjects
         ];
 
+        // Ordenamiento por profundidad isométrica
         renderList.sort((a, b) => (a.x + a.y) - (b.x + b.y));
 
-        // 3. Renderizar en orden correcto pasando el timestamp para las animaciones
+        // 3. Renderizar entidades y objetos ordenados
         renderList.forEach(entity => {
             entity.draw(this.ctx, cameraOffsetX, cameraOffsetY, timestamp);
         });
