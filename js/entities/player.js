@@ -14,21 +14,22 @@ export class Player {
             this.spriteLoaded = true;
         };
 
-        // Dimensiones estándar de cada frame en la hoja de sprites
+        // Dimensiones exactas de cada frame
         this.frameWidth = 16;  
         this.frameHeight = 24; 
         
+        // Control de animación
         this.animTimer = 0;
         this.currentFrame = 0;
-        this.isMoving = false;
-        this.facingDirection = 'down'; // 'down', 'up', 'left', 'right'
+        this.facing = 'down'; // 'down', 'up', 'left', 'right'
+        this.state = 'idle';  // 'idle', 'walk', 'attack'
     }
 
     update(inputManager, mapManager) {
         const move = inputManager.getMovementVector();
 
         if (move.x !== 0 || move.y !== 0) {
-            this.isMoving = true;
+            this.state = 'walk';
             
             // Movimiento independiente en X e Y con colisión
             const nextX = this.x + move.x * this.speed;
@@ -41,23 +42,27 @@ export class Player {
                 this.y = nextY;
             }
 
-            // Determinar orientación lógica
+            // Orientación
             if (Math.abs(move.x) > Math.abs(move.y)) {
-                this.facingDirection = move.x > 0 ? 'right' : 'left';
+                this.facing = move.x > 0 ? 'right' : 'left';
             } else {
-                this.facingDirection = move.y > 0 ? 'down' : 'up';
+                this.facing = move.y > 0 ? 'down' : 'up';
             }
 
-            // Control de velocidad de animación
+            // Animación de caminar (6 frames)
             this.animTimer += 0.2;
             if (this.animTimer >= 1) {
-                // Ciclo seguro de 6 frames para el desplazamiento
                 this.currentFrame = (this.currentFrame + 1) % 6;
                 this.animTimer = 0;
             }
         } else {
-            this.isMoving = false;
-            this.currentFrame = 0; // Frame estático de descanso
+            this.state = 'idle';
+            // Animación de reposo (6 frames)
+            this.animTimer += 0.1;
+            if (this.animTimer >= 1) {
+                this.currentFrame = (this.currentFrame + 1) % 6;
+                this.animTimer = 0;
+            }
         }
 
         // Límites estrictos del mapa 32x32
@@ -67,35 +72,40 @@ export class Player {
     }
 
     draw(ctx, cameraOffsetX, cameraOffsetY) {
+        if (!this.spriteLoaded) return;
+
         const screen = Iso.toScreen(this.x, this.y);
         const renderX = screen.x + cameraOffsetX;
         const renderY = screen.y + cameraOffsetY;
 
-        // 1. Sombra volumétrica proyectada en el suelo
+        // 1. Sombra volumétrica en el suelo
         ctx.fillStyle = 'rgba(0, 0, 0, 0.45)';
         ctx.beginPath();
         ctx.ellipse(renderX, renderY + 2, Iso.tileWidth / 3.5, Iso.tileHeight / 5, 0, 0, Math.PI * 2);
         ctx.fill();
 
-        // Si la imagen aún no ha cargado, evitamos errores
-        if (!this.spriteLoaded) return;
-
-        // 2. Selección de Fila en el Sprite Sheet según la dirección
+        // 2. Selección de la Fila (Row) según estado y dirección
         let row = 0;
-        if (this.facingDirection === 'down') row = 0;
-        else if (this.facingDirection === 'up') row = 2; // Fila superior/inferior correspondiente
-        else if (this.facingDirection === 'right' || this.facingDirection === 'left') row = 1;
+        let maxFrames = 6;
 
-        // Limitar de forma estricta al número máximo de frames seguros por fila (6)
-        const safeFrame = this.currentFrame % 6;
+        if (this.state === 'idle') {
+            if (this.facing === 'down') row = 0;             // f0: Idle Abajo (6 frames)
+            else if (this.facing === 'right' || this.facing === 'left') row = 1; // f1: Idle Derecha (6 frames)
+            else if (this.facing === 'up') row = 2;          // f2: Idle Arriba (6 frames)
+        } else if (this.state === 'walk') {
+            if (this.facing === 'down') row = 3;             // f3: Caminar Abajo (6 frames)
+            else if (this.facing === 'right' || this.facing === 'left') row = 4; // f4: Caminar Derecha (6 frames)
+            else if (this.facing === 'up') row = 5;          // f5: Caminar Arriba (6 frames)
+        }
 
+        // Asegurar que el frame actual no exceda el límite de la fila activa
+        const safeFrame = this.currentFrame % maxFrames;
         const sx = safeFrame * this.frameWidth;
         const sy = row * this.frameHeight;
 
-        // 3. Renderizado con efecto espejo automático para la izquierda
+        // 3. Renderizado con efecto espejo automático si mira a la izquierda
         ctx.save();
-
-        if (this.facingDirection === 'left') {
+        if (this.facing === 'left') {
             ctx.translate(renderX, renderY);
             ctx.scale(-1, 1);
             ctx.drawImage(
@@ -112,7 +122,6 @@ export class Player {
                 this.frameWidth, this.frameHeight
             );
         }
-
         ctx.restore();
     }
 }
