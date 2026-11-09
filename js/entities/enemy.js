@@ -11,18 +11,17 @@ export class Enemy {
         this.sprite = new Image();
         this.sprite.src = 'assets/slime.png';
         this.spriteLoaded = false;
-        this.sprite.onload = () => {
-            this.spriteLoaded = true;
-        };
+        this.sprite.onload = () => { this.spriteLoaded = true; };
 
         this.frameWidth = 32;
         this.frameHeight = 32;
         this.scale = 1.6;
 
-        // Combate y Estadísticas del Slime (10 HP)
+        // Nombre, Nivel y Estadísticas (10 HP)
+        this.name = "Slime lv 2";
         this.maxHp = 10;
         this.hp = 10;
-        this.respawnTimer = 0; // Contador de reaparición (10 segundos)
+        this.respawnTimer = 0; 
 
         this.animTimer = 0;
         this.currentFrame = 0;
@@ -61,8 +60,18 @@ export class Enemy {
     }
 
     update(mapManager, objects = [], player = null) {
-        // Si está muerto, solo descuenta el tiempo de respawn
-        if (this.state === 'dead') return;
+        if (this.state === 'dead') {
+            // Animación de muerte lenta y dramática para el slime
+            this.animTimer += 0.06;
+            if (this.animTimer >= 1) {
+                this.currentFrame++;
+                if (this.currentFrame >= 5) {
+                    this.currentFrame = 4; // Mantener último frame
+                }
+                this.animTimer = 0;
+            }
+            return;
+        }
 
         if (this.attackCooldown > 0) this.attackCooldown--;
 
@@ -137,15 +146,12 @@ export class Enemy {
         else if (this.state === 'walk') { maxFrames = 6; animSpeed = 0.18; }
         else if (this.state === 'attack') { maxFrames = 7; animSpeed = 0.22; }
         else if (this.state === 'hurt') { maxFrames = 3; animSpeed = 0.15; }
-        else if (this.state === 'dead') { maxFrames = 5; animSpeed = 0.15; }
 
         this.animTimer += animSpeed;
         if (this.animTimer >= 1) {
             this.currentFrame++;
             if (this.currentFrame >= maxFrames) {
-                if (this.state === 'dead') {
-                    this.currentFrame = maxFrames - 1;
-                } else if (this.state === 'attack' || this.state === 'hurt') {
+                if (this.state === 'attack' || this.state === 'hurt') {
                     this.state = 'idle';
                     this.currentFrame = 0;
                 } else {
@@ -165,8 +171,6 @@ export class Enemy {
     }
 
     draw(ctx, cameraOffsetX, cameraOffsetY) {
-        if (this.state === 'dead') return; // No se dibuja mientras espera respawn
-
         const screen = Iso.toScreen(this.x, this.y);
         const renderX = screen.x + cameraOffsetX;
         const renderY = screen.y + cameraOffsetY;
@@ -178,8 +182,12 @@ export class Enemy {
 
         if (this.spriteLoaded && this.sprite.complete) {
             let row = 0;
+            let maxFrames = 6;
 
-            if (this.state === 'idle') {
+            if (this.state === 'dead') {
+                row = 12; // Fila de muerte del slime
+                maxFrames = 5;
+            } else if (this.state === 'idle') {
                 if (this.facing === 'down') row = 0;
                 else if (this.facing === 'right' || this.facing === 'left') row = 1;
                 else if (this.facing === 'up') row = 2;
@@ -197,14 +205,15 @@ export class Enemy {
                 else if (this.facing === 'up') row = 11;
             }
 
-            const sx = this.currentFrame * this.frameWidth;
+            const safeFrame = this.currentFrame % maxFrames;
+            const sx = safeFrame * this.frameWidth;
             const sy = row * this.frameHeight;
 
             const drawWidth = this.frameWidth * this.scale;
             const drawHeight = this.frameHeight * this.scale;
 
             ctx.save();
-            if (this.facing === 'left') {
+            if (this.facing === 'left' && this.state !== 'dead') {
                 ctx.translate(renderX, renderY);
                 ctx.scale(-1, 1);
                 ctx.drawImage(this.sprite, sx, sy, this.frameWidth, this.frameHeight, -drawWidth / 2, -drawHeight + (Iso.tileHeight / 2), drawWidth, drawHeight);
@@ -219,18 +228,23 @@ export class Enemy {
             ctx.fill();
         }
 
-        // Barra de Vida miniatura sobre el Slime
-        this.drawHealthBar(ctx, renderX, renderY - 35);
+        // Nombre y Barra de Vida del Slime
+        this.drawInfoBox(ctx, renderX, renderY - 45);
     }
 
-    drawHealthBar(ctx, x, y) {
-        const barWidth = 30;
+    drawInfoBox(ctx, x, y) {
+        ctx.fillStyle = '#FFFFFF';
+        ctx.font = 'bold 10px sans-serif';
+        ctx.textAlign = 'center';
+        ctx.fillText(this.name, x, y);
+
+        const barWidth = 32;
         const barHeight = 4;
         ctx.fillStyle = 'rgba(0, 0, 0, 0.6)';
-        ctx.fillRect(x - barWidth / 2, y, barWidth, barHeight);
+        ctx.fillRect(x - barWidth / 2, y + 3, barWidth, barHeight);
 
         const hpRatio = Math.max(0, this.hp / this.maxHp);
-        ctx.fillStyle = '#ef4444'; // Rojo slime
-        ctx.fillRect(x - barWidth / 2, y, barWidth * hpRatio, barHeight);
+        ctx.fillStyle = '#ef4444';
+        ctx.fillRect(x - barWidth / 2, y + 3, barWidth * hpRatio, barHeight);
     }
 }
