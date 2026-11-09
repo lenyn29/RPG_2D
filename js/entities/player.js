@@ -21,8 +21,8 @@ export class Player {
         this.facing = 'down'; 
         this.state = 'idle';  
 
-        // Nombre, Nivel y Estadísticas (10 HP)
-        this.name = "Doruk lv 1";
+        this.name = "Doruk";
+        this.level = 1; // Nivel del héroe
         this.maxHp = 10;
         this.hp = 10;
         
@@ -32,7 +32,9 @@ export class Player {
         this.knockbackAngle = 0;
         this.isAttacking = false;
         this.attackCooldown = 0;
-        this.deathTimer = 0; // Temporizador para reiniciar tras morir
+        
+        this.fadeTimer = 0; // Temporizador para desvanecer el cuerpo (3s)
+        this.showRestartButton = false;
     }
 
     canMoveTo(newX, newY, mapManager, objects = [], enemies = []) {
@@ -81,16 +83,13 @@ export class Player {
 
     update(inputManager, mapManager, objects = [], enemies = []) {
         if (this.state === 'dead') {
-            // Animación de muerte dramática y lenta (0.05 por frame)
-            this.animTimer += 0.06;
+            this.animTimer += 0.05; // Muerte lenta y dramática
             if (this.animTimer >= 1) {
                 this.currentFrame++;
                 if (this.currentFrame >= 5) {
-                    this.currentFrame = 4; // Quedarse en el último frame
-                    this.deathTimer++;
-                    if (this.deathTimer > 120) { // Reiniciar juego tras 2 segundos de inercia
-                        window.location.reload();
-                    }
+                    this.currentFrame = 4;
+                    if (this.fadeTimer < 180) this.fadeTimer++;
+                    else this.showRestartButton = true; // Mostrar botón tras 3 segundos
                 }
                 this.animTimer = 0;
             }
@@ -180,22 +179,33 @@ export class Player {
         const renderX = screen.x + cameraOffsetX;
         const renderY = screen.y + cameraOffsetY;
 
-        ctx.fillStyle = 'rgba(0, 0, 0, 0.45)';
-        ctx.beginPath();
-        ctx.ellipse(renderX, renderY + 2, Iso.tileWidth / 2.8, Iso.tileHeight / 3.8, 0, 0, Math.PI * 2);
-        ctx.fill();
+        // Si ya pasaron 3 segundos de muerte, el cuerpo se desvanece
+        const isFadedOut = (this.state === 'dead' && this.fadeTimer >= 180);
+
+        // Charco de sangre permanente al morir
+        if (this.state === 'dead') {
+            ctx.fillStyle = 'rgba(185, 28, 28, 0.7)';
+            ctx.beginPath();
+            ctx.ellipse(renderX, renderY + 4, Iso.tileWidth / 2.5, Iso.tileHeight / 3.5, 0, 0, Math.PI * 2);
+            ctx.fill();
+        } else {
+            ctx.fillStyle = 'rgba(0, 0, 0, 0.45)';
+            ctx.beginPath();
+            ctx.ellipse(renderX, renderY + 2, Iso.tileWidth / 2.8, Iso.tileHeight / 3.8, 0, 0, Math.PI * 2);
+            ctx.fill();
+        }
 
         if (this.invincibleFrames > 0 && Math.floor(this.invincibleFrames / 3) % 2 === 0 && this.state !== 'dead') {
             return; 
         }
 
-        if (this.spriteLoaded && this.sprite.complete) {
+        if (!isFadedOut && this.spriteLoaded && this.sprite.complete) {
             let row = 0;
             let maxFrames = 6;
             const currentState = this.state;
 
             if (currentState === 'dead') {
-                row = 9; // Fila de muerte
+                row = 9; 
                 maxFrames = 5;
             } else if (currentState === 'idle') {
                 if (this.facing === 'down') row = 0;
@@ -228,22 +238,23 @@ export class Player {
                 ctx.drawImage(this.sprite, sx, sy, this.frameWidth, this.frameHeight, renderX - drawWidth / 2, renderY - drawHeight + (Iso.tileHeight / 2), drawWidth, drawHeight);
             }
             ctx.restore();
-        } else {
+        } else if (!isFadedOut) {
             ctx.fillStyle = '#00F0FF';
             ctx.beginPath();
             ctx.arc(renderX, renderY - 15, 12, 0, Math.PI * 2);
             ctx.fill();
         }
 
-        // Nombre y Barra de Vida del Héroe
-        this.drawInfoBox(ctx, renderX, renderY - 55);
+        if (this.state !== 'dead') {
+            this.drawInfoBox(ctx, renderX, renderY - 55);
+        }
     }
 
     drawInfoBox(ctx, x, y) {
         ctx.fillStyle = '#FFFFFF';
         ctx.font = 'bold 11px sans-serif';
         ctx.textAlign = 'center';
-        ctx.fillText(this.name, x, y);
+        ctx.fillText(`${this.name} lv ${this.level}`, x, y);
 
         const barWidth = 42;
         const barHeight = 5;
