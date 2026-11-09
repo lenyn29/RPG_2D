@@ -15,14 +15,19 @@ export class InputManager {
     setupListeners() {
         window.addEventListener('touchstart', (e) => {
             if (!this.touchActive) {
-                const touch = e.changedTouches[0];
-                // Solo activamos el joystick si se toca la mitad izquierda de la pantalla, o toda la pantalla si prefieres
-                this.touchId = touch.identifier;
-                this.baseX = touch.clientX;
-                this.baseY = touch.clientY;
-                this.currX = touch.clientX;
-                this.currY = touch.clientY;
-                this.touchActive = true;
+                for (let i = 0; i < e.changedTouches.length; i++) {
+                    const touch = e.changedTouches[i];
+                    // Restringir estrictamente la aparición del joystick a la mitad izquierda de la pantalla
+                    if (touch.clientX < window.innerWidth / 2) {
+                        this.touchId = touch.identifier;
+                        this.baseX = touch.clientX;
+                        this.baseY = touch.clientY;
+                        this.currX = touch.clientX;
+                        this.currY = touch.clientY;
+                        this.touchActive = true;
+                        break;
+                    }
+                }
             }
         }, { passive: false });
 
@@ -56,31 +61,25 @@ export class InputManager {
         window.addEventListener('touchcancel', endHandler);
     }
 
-    // Retorna el vector del joystick normalizado a la pantalla
     getMovementVector() {
         if (!this.touchActive) return { x: 0, y: 0 };
 
         let dx = this.currX - this.baseX;
-        let dy = this.currY - this.baseY; // En HTML5 Canvas, Y positivo es ABAJO, Y negativo es ARRIBA
+        let dy = this.currY - this.baseY; 
         const distance = Math.sqrt(dx * dx + dy * dy);
 
         if (distance === 0) return { x: 0, y: 0 };
 
-        // Limitar al radio máximo del joystick
         const force = Math.min(distance, this.maxRadius) / this.maxRadius;
-        const normX = dx / distance;
-        const normY = dy / distance;
-
         return {
-            x: normX * force,
-            y: normY * force
+            x: (dx / distance) * force,
+            y: (dy / distance) * force
         };
     }
 
     draw(ctx) {
         if (!this.touchActive) return;
 
-        // Dibujar base del joystick
         ctx.beginPath();
         ctx.arc(this.baseX, this.baseY, this.maxRadius, 0, Math.PI * 2);
         ctx.fillStyle = 'rgba(255, 255, 255, 0.15)';
@@ -89,7 +88,6 @@ export class InputManager {
         ctx.lineWidth = 2;
         ctx.stroke();
 
-        // Dibujar palanca (thumb) del joystick
         ctx.beginPath();
         ctx.arc(this.currX, this.currY, 22, 0, Math.PI * 2);
         ctx.fillStyle = 'rgba(0, 240, 255, 0.5)';
