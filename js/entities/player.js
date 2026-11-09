@@ -4,8 +4,9 @@ export class Player {
     constructor(startX, startY) {
         this.x = startX; 
         this.y = startY; 
-        this.speed = 0.055; 
+        this.speed = 0.055; // Velocidad suave y constante
         
+        // Carga de la hoja de sprites física
         this.sprite = new Image();
         this.sprite.src = 'assets/player.png';
         this.spriteLoaded = false;
@@ -13,14 +14,16 @@ export class Player {
             this.spriteLoaded = true;
         };
 
+        // Dimensiones estándar y escala 1.6x
         this.frameWidth = 48;  
         this.frameHeight = 48; 
         this.scale = 1.6;
         
+        // Control de animación
         this.animTimer = 0;
         this.currentFrame = 0;
-        this.facing = 'down'; 
-        this.state = 'idle';  
+        this.facing = 'down'; // 'down', 'up', 'left', 'right'
+        this.state = 'idle';  // 'idle', 'walk'
     }
 
     update(inputManager, mapManager) {
@@ -29,28 +32,32 @@ export class Player {
         if (move.x !== 0 || move.y !== 0) {
             this.state = 'walk';
             
-            // 1. Mapeo directo y limpio de Pantalla a Isométrico
-            // En pantalla: move.x > 0 es derecha, move.y > 0 es abajo.
-            const moveX = (move.x * 0.5 - move.y * 0.5);
-            const moveY = (move.x * 0.5 + move.y * 0.5);
+            // 1. Normalizar el vector del joystick en la pantalla
+            const joyLen = Math.sqrt(move.x * move.x + move.y * move.y);
+            const joyX = joyLen > 0 ? move.x / joyLen : 0;
+            const joyY = joyLen > 0 ? move.y / joyLen : 0;
 
-            // Normalizar velocidad final en el mundo
-            const len = Math.sqrt(moveX * moveX + moveY * moveY);
-            const dirX = len > 0 ? (moveX / len) * this.speed : 0;
-            const dirY = len > 0 ? (moveY / len) * this.speed : 0;
+            // 2. Transformación isométrica corregida (Alineada 1:1 con la pantalla)
+            const targetDx = joyX + joyY;
+            const targetDy = joyY - joyX;
 
-            // 2. Colisión independiente en X e Y
-            const nextX = this.x + dirX;
+            // 3. Normalizar el vector resultante en el mundo para evitar aceleraciones diagonales
+            const worldLen = Math.sqrt(targetDx * targetDx + targetDy * targetDy);
+            const moveX = worldLen > 0 ? (targetDx / worldLen) * this.speed : 0;
+            const moveY = worldLen > 0 ? (targetDy / worldLen) * this.speed : 0;
+
+            // 4. Movimiento independiente con colisión en el mapa
+            const nextX = this.x + moveX;
             if (!mapManager || mapManager.isWalkable(nextX, this.y)) {
                 this.x = nextX;
             }
 
-            const nextY = this.y + dirY;
+            const nextY = this.y + moveY;
             if (!mapManager || mapManager.isWalkable(this.x, nextY)) {
                 this.y = nextY;
             }
 
-            // 3. Ángulos basados en la pantalla (Arriba = 0°)
+            // 5. Mapeo de ángulos exactos (Arriba = 0°)
             // - Arriba (0°): 330° a 30° (Rango de 60°)
             // - Derecha (90°): 30° a 150° (Rango de 120°)
             // - Abajo (180°): 150° a 210° (Rango de 60°)
@@ -76,6 +83,7 @@ export class Player {
             }
         } else {
             this.state = 'idle';
+            // Animación de reposo (6 frames)
             this.animTimer += 0.1;
             if (this.animTimer >= 1) {
                 this.currentFrame = (this.currentFrame + 1) % 6;
@@ -83,7 +91,7 @@ export class Player {
             }
         }
 
-        // Límites del mapa 32x32
+        // Límites estrictos del mapa 32x32
         const maxLimit = mapManager ? mapManager.cols - 0.1 : 31.9;
         this.x = Math.max(0.1, Math.min(maxLimit, this.x));
         this.y = Math.max(0.1, Math.min(maxLimit, this.y));
@@ -96,13 +104,13 @@ export class Player {
         const renderX = screen.x + cameraOffsetX;
         const renderY = screen.y + cameraOffsetY;
 
-        // Sombra en el suelo
+        // 1. Sombra volumétrica en el suelo
         ctx.fillStyle = 'rgba(0, 0, 0, 0.45)';
         ctx.beginPath();
         ctx.ellipse(renderX, renderY + 2, Iso.tileWidth / 2.8, Iso.tileHeight / 3.8, 0, 0, Math.PI * 2);
         ctx.fill();
 
-        // Selección de Fila según estado y dirección
+        // 2. Selección de Fila en el Sprite Sheet según estado y dirección
         let row = 0;
         const maxFrames = 6;
 
@@ -123,6 +131,7 @@ export class Player {
         const drawWidth = this.frameWidth * this.scale;
         const drawHeight = this.frameHeight * this.scale;
 
+        // 3. Renderizado con escala y efecto espejo automático para la izquierda
         ctx.save();
         if (this.facing === 'left') {
             ctx.translate(renderX, renderY);
