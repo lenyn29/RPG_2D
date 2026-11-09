@@ -11,10 +11,10 @@ class GameEngine {
         this.resizeCanvas();
         window.addEventListener('resize', () => this.resizeCanvas());
 
-        // Inicializar Gestor de Controles, Mapa y Entidades
+        // Inicializar Gestores y Jugador en posición segura del mapa
         this.inputManager = new InputManager(this.canvas);
         this.mapManager = new MapManager();
-        this.player = new Player(2.5, 2.5);
+        this.player = new Player(3.5, 3.5); 
         
         this.lastTime = performance.now();
         this.loop = this.loop.bind(this);
@@ -27,22 +27,23 @@ class GameEngine {
     }
 
     update(dt) {
-        this.player.update(this.inputManager);
+        // Enviar mapManager para procesar colisiones
+        this.player.update(this.inputManager, this.mapManager);
     }
 
     render() {
         this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
 
         const cameraOffsetX = this.canvas.width / 2;
-        const cameraOffsetY = this.canvas.height / 3;
+        const cameraOffsetY = this.canvas.height / 3.5;
 
-        // 1. Renderizar el Mapa Isométrico (Capa de Suelo)
+        // 1. Dibujar Terreno
         this.mapManager.draw(this.ctx, cameraOffsetX, cameraOffsetY);
 
-        // 2. Renderizar al Jugador (Entidades)
+        // 2. Dibujar Jugador
         this.player.draw(this.ctx, cameraOffsetX, cameraOffsetY);
 
-        // 3. Renderizar la Interfaz Táctil (Joystick UI superpuesta)
+        // 3. Dibujar UI Táctil
         this.inputManager.draw(this.ctx);
     }
 
