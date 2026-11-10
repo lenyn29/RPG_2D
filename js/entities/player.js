@@ -41,8 +41,8 @@ export class Player {
         this.deathCounter = 0;
         this.showRestartButton = false;
 
-        // Control del aviso visual de subida de nivel
-        this.levelUpNotification = {
+        // Aviso estilo flash flotante sobre el personaje
+        this.levelUpFlash = {
             active: false,
             timer: 0,
             text: ""
@@ -60,15 +60,19 @@ export class Player {
         this.level++;
         this.xp = 0;
         this.maxXp = ProgressionSystem.calculateXpNeeded(this.level);
+        
+        // Aumentar HP máximo y recuperar el 20% de vida al subir de nivel
         this.maxHp = ProgressionSystem.calculateMaxHp(this.level);
-        this.hp = this.maxHp; // Curación completa al subir de nivel
+        const healAmount = this.maxHp * 0.20;
+        this.hp = Math.min(this.maxHp, this.hp + healAmount);
+
         this.attackPower = ProgressionSystem.calculateDamage(this.level);
 
-        // Activar aviso visual y confeti
-        this.levelUpNotification = {
+        // Activar aviso tipo flash corto sobre el personaje
+        this.levelUpFlash = {
             active: true,
-            timer: 150, // Duración en frames (aprox 2.5 segundos)
-            text: `⬆️ ¡NIVEL ${this.level} ALCANZADO!`
+            timer: 75, // Flash rápido de 1.2 segundos (75 frames)
+            text: `⬆️ Lv ${this.level}!`
         };
 
         if (particleSystem && canvasWidth && canvasHeight) {
@@ -121,11 +125,11 @@ export class Player {
     }
 
     update(inputManager, mapManager, objects = [], enemies = []) {
-        // Actualizar temporizador de notificación de nivel
-        if (this.levelUpNotification.active) {
-            this.levelUpNotification.timer--;
-            if (this.levelUpNotification.timer <= 0) {
-                this.levelUpNotification.active = false;
+        // Actualizar temporizador del flash de nivel
+        if (this.levelUpFlash.active) {
+            this.levelUpFlash.timer--;
+            if (this.levelUpFlash.timer <= 0) {
+                this.levelUpFlash.active = false;
             }
         }
 
@@ -286,6 +290,20 @@ export class Player {
 
         if (this.state !== 'dead') {
             this.drawInfoBox(ctx, renderX, renderY - 60);
+
+            // Dibujar notificación flash pequeña justo arriba del personaje si está activa
+            if (this.levelUpFlash.active) {
+                ctx.save();
+                ctx.fillStyle = '#eab308'; // Color dorado brillante
+                ctx.font = 'bold 13px sans-serif';
+                ctx.textAlign = 'center';
+                ctx.shadowColor = '#000000';
+                ctx.shadowBlur = 4;
+                // Flota levemente hacia arriba según el temporizador
+                const offsetY = -75 - ((75 - this.levelUpFlash.timer) * 0.2);
+                ctx.fillText(this.levelUpFlash.text, renderX, renderY + offsetY);
+                ctx.restore();
+            }
         }
     }
 
