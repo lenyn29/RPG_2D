@@ -12,22 +12,18 @@
             user-select: none;
             -webkit-user-select: none;
         }
-        body, html {
-            width: 100%;
-            height: 100%;
-            background-color: #111625;
+        html, body {
+            margin: 0;
+            padding: 0;
+            width: 100vw;
+            height: 100vh;
             overflow: hidden;
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            font-family: monospace;
-            touch-action: none; /* <--- CRUCIAL PARA MÓVILES */
+            background-color: #0f172a;
         }
         canvas {
             display: block;
-            background: #182033;
-            box-shadow: 0 0 20px rgba(0, 240, 255, 0.2);
-            touch-action: none; /* <--- CRUCIAL PARA MÓVILES */
+            width: 100vw;
+            height: 100vh;
         }
     </style>
 </head>
