@@ -4,35 +4,43 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>RPG Isométrico PWA - Shangri-La</title>
-    <style>
-        * {
-            box-sizing: border-box;
-            margin: 0;
-            padding: 0;
-            user-select: none;
-            -webkit-user-select: none;
-            touch-action: none;
-        }
-        html, body {
-            width: 100vw;
-            height: 100vh;
-            overflow: hidden;
-            background-color: #0b0f19;
-            position: fixed;
-            top: 0;
-            left: 0;
-        }
-        #gameCanvas {
-            display: block;
-            width: 100vw;
-            height: 100vh;
-            background-color: #111827;
-        }
-    </style>
+    <link rel="stylesheet" href="style.css">
 </head>
 <body>
+
+    <!-- Pantalla de Inicio / Lobby -->
+    <div id="startScreen">
+        <div class="top-bar">
+            <button class="btn-download" id="downloadBtn">
+                📥 Instalar App
+            </button>
+        </div>
+        
+        <div class="content-box">
+            <h1>SHANGRI-LA FRONTIER</h1>
+            <p>
+                Adéntrate en vastos territorios inexplorados. Un mundo procedural repleto de misterios ancestrales, 
+                majestuosos Santuarios de Piedra hexagonal y criaturas implacables. Domina tus habilidades táctiles, 
+                sube de nivel y forja tu leyenda en esta experiencia de acción definitiva.
+            </p>
+            <button class="btn-start" id="startBtn">✨ INICIAR AVENTURA</button>
+        </div>
+
+        <div class="footer-note">Optimizada para Android PWA • Motor Isométrico DeltaTime</div>
+    </div>
+
+    <!-- Canvas Principal del Juego -->
     <canvas id="gameCanvas"></canvas>
-    <!-- Asegúrate de que el script principal cargue como módulo -->
-    <script type="module" src="js/engine/gameLoop.js"></script>
+
+    <!-- Punto de entrada principal (Módulo JS) -->
+    <script type="module">
+        import { initStartScreen } from './js/engine/startScreen.js';
+        import { GameEngine } from './js/engine/gameLoop.js';
+
+        // Inicializar la pantalla de inicio y pasarle la función para arrancar el motor
+        initStartScreen(() => {
+            new GameEngine();
+        });
+    </script>
 </body>
 </html>
