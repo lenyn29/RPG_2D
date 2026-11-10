@@ -21,7 +21,6 @@ export class CombatSystem {
         const attackRange = 1.3;
         let enemiesInRange = [];
 
-        // 1. Encontrar enemigos dentro del radio de alcance del ataque
         enemies.forEach(enemy => {
             if (enemy.state === 'dead' || enemy.isHurt) return;
 
@@ -35,27 +34,26 @@ export class CombatSystem {
         });
 
         if (enemiesInRange.length > 0) {
-            // Ordenar por cercanía para seleccionar al más cercano
             enemiesInRange.sort((a, b) => a.dist - b.dist);
             const closest = enemiesInRange[0];
 
-            // 2. Hacer que el personaje se voltee automáticamente hacia el enemigo más cercano
             if (Math.abs(closest.dx) > Math.abs(closest.dy)) {
                 player.facing = closest.dx > 0 ? 'right' : 'left';
             } else {
                 player.facing = closest.dy > 0 ? 'down' : 'up';
             }
 
-            // 3. Regla de daño: 1 enemigo = 1 de daño completo. 2 o más = daño reducido/dividido (mitad de daño)
-            const damageAmount = enemiesInRange.length === 1 ? 1 : 0.5;
+            // Aplicar daño del héroe escalado por nivel (dividido si hay varios)
+            const baseDamage = player.attackPower || 1;
+            const damageAmount = enemiesInRange.length === 1 ? baseDamage : baseDamage / 2;
 
             enemiesInRange.forEach(item => {
                 const targetEnemy = item.enemy;
                 targetEnemy.hp -= damageAmount;
                 targetEnemy.applyDamage(player.x, player.y);
-                this.particles.emitBlood(targetEnemy.x, targetEnemy.y, damageAmount === 1 ? 6 : 3);
+                this.particles.emitBlood(targetEnemy.x, targetEnemy.y, 5);
                 
-                this.addFloatingText(`-${damageAmount}`, targetEnemy.x, targetEnemy.y - 0.5, '#ef4444');
+                this.addFloatingText(`-${damageAmount.toFixed(1)}`, targetEnemy.x, targetEnemy.y - 0.5, '#ef4444');
 
                 if (targetEnemy.hp <= 0) {
                     targetEnemy.hp = 0;
@@ -64,6 +62,11 @@ export class CombatSystem {
                     targetEnemy.animTimer = 0;
                     targetEnemy.fadeTimer = 180; 
                     targetEnemy.respawnTimer = targetEnemy.level * 5 * 60; // 5s por nivel
+
+                    // Otorgar XP al jugador al derrotar al enemigo
+                    const xpReward = targetEnemy.level * 50;
+                    player.gainXp(xpReward);
+                    this.addFloatingText(`+${xpReward} XP`, player.x, player.y - 0.8, '#3b82f6');
                 }
             });
         }
@@ -81,10 +84,11 @@ export class CombatSystem {
 
             if (enemy.state === 'attack' && dist <= 0.8) {
                 if (!player.isHurt && player.invincibleFrames <= 0) {
-                    player.hp -= 1; // 1 punto de daño al héroe
+                    const enemyDamage = enemy.attackPower || 1;
+                    player.hp -= enemyDamage;
                     player.takeDamage(enemy.x, enemy.y);
                     this.particles.emitBlood(player.x, player.y, 6);
-                    this.addFloatingText("-1", player.x, player.y - 0.5, '#3b82f6'); 
+                    this.addFloatingText(`-${enemyDamage.toFixed(1)}`, player.x, player.y - 0.5, '#3b82f6'); 
 
                     if (player.hp <= 0) {
                         player.hp = 0;
