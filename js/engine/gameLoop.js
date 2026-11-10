@@ -9,22 +9,28 @@ import { ScreenManager } from './screenManager.js';
 class GameEngine {
     constructor() {
         this.canvas = document.getElementById('gameCanvas');
-        if (!this.canvas) return;
+        if (!this.canvas) {
+            console.error("No se encontró el elemento canvas con id 'gameCanvas'");
+            return;
+        }
         this.ctx = this.canvas.getContext('2d');
         
         this.resizeCanvas();
         window.addEventListener('resize', () => this.resizeCanvas());
 
-        // Inicializar subsistemas del motor
-        this.screenManager = new ScreenManager();
-        this.mapManager = new MapManager(12345);
-        this.particleSystem = new ParticleSystem();
-        this.combatSystem = new CombatSystem(this.particleSystem);
+        try {
+            this.screenManager = new ScreenManager();
+            this.mapManager = new MapManager(12345);
+            this.particleSystem = new ParticleSystem();
+            this.combatSystem = new CombatSystem(this.particleSystem);
 
-        this.player = new Player(8.0, 8.0); 
-        this.inputManager = new InputManager(this.canvas, this.player);
+            this.player = new Player(8.0, 8.0); 
+            this.inputManager = new InputManager(this.canvas, this.player);
 
-        this.mapManager.update(this.player.x, this.player.y);
+            this.mapManager.update(this.player.x, this.player.y);
+        } catch (err) {
+            console.error("Error crítico en la inicialización del motor:", err);
+        }
 
         this.lastTime = performance.now();
         this.loop = this.loop.bind(this);
@@ -32,39 +38,42 @@ class GameEngine {
     }
 
     resizeCanvas() {
-        // Ajustar automáticamente el canvas al tamaño real de la ventana del navegador
-        this.canvas.width = window.innerWidth;
-        this.canvas.height = window.innerHeight;
+        // Asegurar dimensiones válidas para evitar colapso en móviles
+        this.canvas.width = window.innerWidth || document.documentElement.clientWidth || 800;
+        this.canvas.height = window.innerHeight || document.documentElement.clientHeight || 600;
     }
 
     update(dt) {
         try {
+            if (!this.mapManager || !this.player) return;
+
             this.mapManager.update(this.player.x, this.player.y);
             const activeObjects = this.mapManager.getActiveObjects() || [];
             const activeEnemies = this.mapManager.getActiveEnemies() || [];
             
-            // Repeler mobs si invaden la zona segura del Santuario Mágico
+            // Seguridad en la repulsión del santuario
             const sanctuary = this.mapManager.sanctuary;
-            if (sanctuary) {
+            if (sanctuary && activeEnemies.length > 0) {
                 activeEnemies.forEach(enemy => {
-                    if (enemy.state !== 'dead' && sanctuary.isMobInSafeArea(enemy.x, enemy.y, enemy.level)) {
+                    if (enemy && enemy.state !== 'dead' && sanctuary.isMobInSafeArea(enemy.x, enemy.y, enemy.level)) {
                         sanctuary.repelMob(enemy);
                     }
                 });
             }
 
-            // Procesar combate, XP, respawns y efectos
             this.combatSystem.processPlayerAttack(this.player, activeEnemies, this.canvas.width, this.canvas.height);
             this.combatSystem.processEnemyAttacks(this.player, activeEnemies);
             this.combatSystem.updateRespawns(activeEnemies);
             this.particleSystem.update();
             this.combatSystem.updateFloatingTexts();
 
-            // Actualizar entidades con Delta Time
-            this.player.update(this.inputManager, this.mapManager, activeObjects, activeEnemies, dt);
+            const safeDt = isNaN(dt) ? 1 : dt;
+            this.player.update(this.inputManager, this.mapManager, activeObjects, activeEnemies, safeDt);
 
             activeEnemies.forEach(enemy => {
-                enemy.update(this.mapManager, activeObjects, this.player, dt);
+                if (enemy && typeof enemy.update === 'function') {
+                    enemy.update(this.mapManager, activeObjects, this.player, safeDt);
+                }
             });
         } catch (e) {
             console.error("Error en el ciclo de actualización (update):", e);
@@ -73,21 +82,22 @@ class GameEngine {
 
     render(timestamp) {
         try {
+            if (!this.ctx || !this.canvas) return;
+
             this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
 
-            // Obtener desplazamiento de Screen Shake
-            const shake = this.combatSystem.getScreenShakeOffset();
+            const shake = this.combatSystem ? this.combatSystem.getScreenShakeOffset() : { x: 0, y: 0 };
 
             const playerScreen = Iso.toScreen(this.player.x, this.player.y);
             let cameraOffsetX = (this.canvas.width / 2) - playerScreen.x + shake.x;
             let cameraOffsetY = (this.canvas.height / 2) - playerScreen.y + shake.y;
 
-            // 1. Dibujar mapa y Santuario Mágico
-            this.mapManager.draw(this.ctx, cameraOffsetX, cameraOffsetY, timestamp);
+            if (this.mapManager) {
+                this.mapManager.draw(this.ctx, cameraOffsetX, cameraOffsetY, timestamp);
+            }
 
-            // 2. Renderizar entidades ordenadas por profundidad (Y-Sorting)
-            const activeObjects = this.mapManager.getActiveObjects() || [];
-            const activeEnemies = this.mapManager.getActiveEnemies() || [];
+            const activeObjects = this.mapManager ? (this.mapManager.getActiveObjects() || []) : [];
+            const activeEnemies = this.mapManager ? (this.mapManager.getActiveEnemies() || []) : [];
             
             const renderList = [
                 this.player,
@@ -103,12 +113,16 @@ class GameEngine {
                 }
             });
 
-            // 3. Efectos visuales e interfaz de usuario (UI)
-            this.particleSystem.draw(this.ctx, cameraOffsetX, cameraOffsetY, Iso);
-            this.combatSystem.drawFloatingTexts(this.ctx, cameraOffsetX, cameraOffsetY, Iso);
-            this.particleSystem.drawConfettiUI(this.ctx);
-
-            this.inputManager.draw(this.ctx);
+            if (this.particleSystem) {
+                this.particleSystem.draw(this.ctx, cameraOffsetX, cameraOffsetY, Iso);
+                this.particleSystem.drawConfettiUI(this.ctx);
+            }
+            if (this.combatSystem) {
+                this.combatSystem.drawFloatingTexts(this.ctx, cameraOffsetX, cameraOffsetY, Iso);
+            }
+            if (this.inputManager) {
+                this.inputManager.draw(this.ctx);
+            }
         } catch (e) {
             console.error("Error en el ciclo de renderizado (render):", e);
         }
