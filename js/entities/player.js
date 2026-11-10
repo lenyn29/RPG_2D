@@ -1,4 +1,5 @@
 import { Iso } from '../engine/isometric.js';
+import { ProgressionSystem } from '../engine/progressionSystem.js';
 
 export class Player {
     constructor(startX, startY) {
@@ -23,8 +24,12 @@ export class Player {
 
         this.name = "Doruk";
         this.level = 1;
-        this.maxHp = 10;
-        this.hp = 10;
+        this.xp = 0;
+        this.maxXp = ProgressionSystem.calculateXpNeeded(this.level);
+        
+        this.maxHp = ProgressionSystem.calculateMaxHp(this.level);
+        this.hp = this.maxHp;
+        this.attackPower = ProgressionSystem.calculateDamage(this.level);
         
         this.isHurt = false;
         this.hurtTimer = 0;
@@ -33,8 +38,24 @@ export class Player {
         this.isAttacking = false;
         this.attackCooldown = 0;
         
-        this.deathCounter = 0; // Contador estricto de 5 segundos (300 frames)
+        this.deathCounter = 0;
         this.showRestartButton = false;
+    }
+
+    gainXp(amount) {
+        this.xp += amount;
+        if (this.xp >= this.maxXp) {
+            this.levelUp();
+        }
+    }
+
+    levelUp() {
+        this.level++;
+        this.xp = 0;
+        this.maxXp = ProgressionSystem.calculateXpNeeded(this.level);
+        this.maxHp = ProgressionSystem.calculateMaxHp(this.level);
+        this.hp = this.maxHp; // Curar al subir de nivel
+        this.attackPower = ProgressionSystem.calculateDamage(this.level);
     }
 
     canMoveTo(newX, newY, mapManager, objects = [], enemies = []) {
@@ -86,13 +107,10 @@ export class Player {
             this.animTimer += 0.05;
             if (this.animTimer >= 1) {
                 this.currentFrame++;
-                if (this.currentFrame >= 5) {
-                    this.currentFrame = 4;
-                }
+                if (this.currentFrame >= 5) this.currentFrame = 4;
                 this.animTimer = 0;
             }
 
-            // Exactly 5 segundos (300 frames a 60fps) para mostrar el botón de reiniciar
             this.deathCounter++;
             if (this.deathCounter >= 300) {
                 this.showRestartButton = true;
@@ -207,20 +225,13 @@ export class Player {
             const currentState = this.state;
 
             if (currentState === 'dead') {
-                row = 9; 
-                maxFrames = 5;
+                row = 9; maxFrames = 5;
             } else if (currentState === 'idle') {
-                if (this.facing === 'down') row = 0;
-                else if (this.facing === 'right' || this.facing === 'left') row = 1;
-                else if (this.facing === 'up') row = 2;
+                row = this.facing === 'down' ? 0 : (this.facing === 'up' ? 2 : 1);
             } else if (currentState === 'walk') {
-                if (this.facing === 'down') row = 3;
-                else if (this.facing === 'right' || this.facing === 'left') row = 4;
-                else if (this.facing === 'up') row = 5;
+                row = this.facing === 'down' ? 3 : (this.facing === 'up' ? 5 : 4);
             } else if (currentState === 'attack') {
-                if (this.facing === 'down') row = 6;
-                else if (this.facing === 'right' || this.facing === 'left') row = 7;
-                else if (this.facing === 'up') row = 8;
+                row = this.facing === 'down' ? 6 : (this.facing === 'up' ? 8 : 7);
                 maxFrames = 4;
             }
 
@@ -248,12 +259,11 @@ export class Player {
         }
 
         if (this.state !== 'dead') {
-            this.drawInfoBox(ctx, renderX, renderY - 60); // Margen superior adecuado
+            this.drawInfoBox(ctx, renderX, renderY - 60);
         }
     }
 
     drawInfoBox(ctx, x, y) {
-        // Margen claro entre el texto del nombre/nivel y la barra de vida
         ctx.fillStyle = '#FFFFFF';
         ctx.font = 'bold 11px sans-serif';
         ctx.textAlign = 'center';
@@ -261,13 +271,21 @@ export class Player {
 
         const barWidth = 42;
         const barHeight = 5;
-        const barY = y + 6; // Margen de separación limpio
+        const barY = y + 6;
 
+        // Barra de HP
         ctx.fillStyle = 'rgba(0, 0, 0, 0.6)';
         ctx.fillRect(x - barWidth / 2, barY, barWidth, barHeight);
-
         const hpRatio = Math.max(0, this.hp / this.maxHp);
         ctx.fillStyle = '#22c55e';
         ctx.fillRect(x - barWidth / 2, barY, barWidth * hpRatio, barHeight);
+
+        // Barra de XP debajo de la barra de HP
+        const xpY = barY + 7;
+        ctx.fillStyle = 'rgba(0, 0, 0, 0.6)';
+        ctx.fillRect(x - barWidth / 2, xpY, barWidth, 3);
+        const xpRatio = Math.max(0, this.xp / this.maxXp);
+        ctx.fillStyle = '#3b82f6'; // Azul XP
+        ctx.fillRect(x - barWidth / 2, xpY, barWidth * xpRatio, 3);
     }
 }
