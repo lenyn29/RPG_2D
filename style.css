@@ -19,7 +19,7 @@ html, body {
 }
 
 #gameCanvas {
-    display: none; /* Oculto hasta iniciar la aventura */
+    display: none;
     width: 100vw;
     height: 100vh;
     background-color: #111827;
