@@ -39,7 +39,6 @@ class GameEngine {
             const activeObjects = this.mapManager.getActiveObjects() || [];
             const activeEnemies = this.mapManager.getActiveEnemies() || [];
             
-            // Pasar dimensiones del canvas para el confeti
             this.combatSystem.processPlayerAttack(this.player, activeEnemies, this.canvas.width, this.canvas.height);
             this.combatSystem.processEnemyAttacks(this.player, activeEnemies);
             this.combatSystem.updateRespawns(activeEnemies);
@@ -88,22 +87,6 @@ class GameEngine {
 
             // Renderizar partículas de confeti en capa UI superior
             this.particleSystem.drawConfettiUI(this.ctx);
-
-            // Dibujar cartel de subida de nivel en pantalla si está activo
-            if (this.player.levelUpNotification.active) {
-                this.ctx.save();
-                this.ctx.fillStyle = 'rgba(0, 0, 0, 0.75);';
-                this.ctx.fillRect(0, this.canvas.height / 2 - 40, this.canvas.width, 80);
-
-                this.ctx.fillStyle = '#eab308'; // Dorado nivel
-                this.ctx.font = 'bold 22px sans-serif';
-                this.ctx.textAlign = 'center';
-                this.ctx.textBaseline = 'middle';
-                this.ctx.shadowColor = '#000000';
-                this.ctx.shadowBlur = 6;
-                this.ctx.fillText(this.player.levelUpNotification.text, this.canvas.width / 2, this.canvas.height / 2);
-                this.ctx.restore();
-            }
 
             this.inputManager.draw(this.ctx);
         } catch (e) {
