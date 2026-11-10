@@ -1,3 +1,5 @@
+import { GameEngine } from './gameLoop.js';
+
 let deferredPrompt = null;
 
 window.addEventListener('beforeinstallprompt', (e) => {
@@ -5,34 +7,50 @@ window.addEventListener('beforeinstallprompt', (e) => {
     deferredPrompt = e;
 });
 
-export function initStartScreen(onStartCallback) {
-    const downloadBtn = document.getElementById('downloadBtn');
-    const startBtn = document.getElementById('startBtn');
+// Inyectar dinámicamente la pantalla de inicio al cargar el documento
+document.addEventListener('DOMContentLoaded', () => {
+    buildStartScreenDOM();
+});
 
-    if (downloadBtn) {
-        downloadBtn.addEventListener('click', handleInstallClick);
-    }
+function buildStartScreenDOM() {
+    if (document.getElementById('startScreen')) return;
 
-    if (startBtn) {
-        startBtn.addEventListener('click', () => {
-            triggerFullscreenAndLandscape();
-            
-            // Ocultar pantalla de inicio y mostrar canvas
-            const startScreen = document.getElementById('startScreen');
-            const canvas = document.getElementById('gameCanvas');
-            
-            if (startScreen) startScreen.style.display = 'none';
-            if (canvas) {
-                canvas.style.display = 'block';
-                window.dispatchEvent(new Event('resize'));
-            }
+    const startScreen = document.createElement('div');
+    startScreen.id = 'startScreen';
+    startScreen.innerHTML = `
+        <div class="top-bar">
+            <button class="btn-download" id="downloadBtn">📥 Instalar App</button>
+        </div>
+        <div class="content-box">
+            <h1>SHANGRI-LA FRONTIER</h1>
+            <p>
+                Adéntrate en vastos territorios inexplorados. Un mundo procedural repleto de misterios ancestrales, 
+                majestuosos Santuarios de Piedra hexagonal y criaturas implacables. Domina tus habilidades táctiles, 
+                sube de nivel y forja tu leyenda en esta experiencia de acción definitiva.
+            </p>
+            <button class="btn-start" id="startBtn">✨ INICIAR AVENTURA</button>
+        </div>
+        <div class="footer-note">Optimizada para Android PWA • Motor Isométrico DeltaTime</div>
+    `;
 
-            // Ejecutar la función para arrancar el motor del juego
-            if (typeof onStartCallback === 'function') {
-                onStartCallback();
-            }
-        });
-    }
+    document.body.appendChild(startScreen);
+
+    // Enlazar eventos
+    document.getElementById('downloadBtn').addEventListener('click', handleInstallClick);
+    document.getElementById('startBtn').addEventListener('click', () => {
+        triggerFullscreenAndLandscape();
+
+        // Ocultar lobby, mostrar canvas y arrancar el motor
+        startScreen.style.display = 'none';
+        const canvas = document.getElementById('gameCanvas');
+        if (canvas) {
+            canvas.style.display = 'block';
+            window.dispatchEvent(new Event('resize'));
+        }
+
+        // Arrancar el motor del juego
+        new GameEngine();
+    });
 }
 
 function handleInstallClick() {
