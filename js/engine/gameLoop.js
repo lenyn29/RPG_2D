@@ -10,13 +10,16 @@ class GameEngine {
     constructor() {
         this.canvas = document.getElementById('gameCanvas');
         if (!this.canvas) {
-            console.error("No se encontró el elemento canvas con id 'gameCanvas'");
+            console.error("Canvas no encontrado");
             return;
         }
         this.ctx = this.canvas.getContext('2d');
         
         this.resizeCanvas();
         window.addEventListener('resize', () => this.resizeCanvas());
+        window.addEventListener('orientationchange', () => {
+            setTimeout(() => this.resizeCanvas(), 200);
+        });
 
         try {
             this.screenManager = new ScreenManager();
@@ -29,7 +32,7 @@ class GameEngine {
 
             this.mapManager.update(this.player.x, this.player.y);
         } catch (err) {
-            console.error("Error crítico en la inicialización del motor:", err);
+            console.error("Error al inicializar subsistemas:", err);
         }
 
         this.lastTime = performance.now();
@@ -38,20 +41,24 @@ class GameEngine {
     }
 
     resizeCanvas() {
-        // Asegurar dimensiones válidas para evitar colapso en móviles
-        this.canvas.width = window.innerWidth || document.documentElement.clientWidth || 800;
-        this.canvas.height = window.innerHeight || document.documentElement.clientHeight || 600;
+        // Dimensiones seguras para evitar cero absoluto en móviles Android
+        const w = window.innerWidth || document.documentElement.clientWidth || screen.width;
+        const h = window.innerHeight || document.documentElement.clientHeight || screen.height;
+        this.canvas.width = w > 0 ? w : 800;
+        this.canvas.height = h > 0 ? h : 600;
     }
 
     update(dt) {
         try {
             if (!this.mapManager || !this.player) return;
 
+            const safeDt = (isNaN(dt) || dt <= 0) ? 1 : dt;
+
             this.mapManager.update(this.player.x, this.player.y);
             const activeObjects = this.mapManager.getActiveObjects() || [];
             const activeEnemies = this.mapManager.getActiveEnemies() || [];
             
-            // Seguridad en la repulsión del santuario
+            // Repulsión del Santuario Mágico segura
             const sanctuary = this.mapManager.sanctuary;
             if (sanctuary && activeEnemies.length > 0) {
                 activeEnemies.forEach(enemy => {
@@ -67,7 +74,6 @@ class GameEngine {
             this.particleSystem.update();
             this.combatSystem.updateFloatingTexts();
 
-            const safeDt = isNaN(dt) ? 1 : dt;
             this.player.update(this.inputManager, this.mapManager, activeObjects, activeEnemies, safeDt);
 
             activeEnemies.forEach(enemy => {
@@ -76,13 +82,13 @@ class GameEngine {
                 }
             });
         } catch (e) {
-            console.error("Error en el ciclo de actualización (update):", e);
+            console.error("Error en update():", e);
         }
     }
 
     render(timestamp) {
         try {
-            if (!this.ctx || !this.canvas) return;
+            if (!this.ctx || !this.canvas || !this.player) return;
 
             this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
 
@@ -124,7 +130,7 @@ class GameEngine {
                 this.inputManager.draw(this.ctx);
             }
         } catch (e) {
-            console.error("Error en el ciclo de renderizado (render):", e);
+            console.error("Error en render():", e);
         }
     }
 
