@@ -32,6 +32,7 @@ class GameEngine {
     }
 
     resizeCanvas() {
+        // Ajustar automáticamente el canvas al tamaño real de la ventana del navegador
         this.canvas.width = window.innerWidth;
         this.canvas.height = window.innerHeight;
     }
@@ -42,7 +43,7 @@ class GameEngine {
             const activeObjects = this.mapManager.getActiveObjects() || [];
             const activeEnemies = this.mapManager.getActiveEnemies() || [];
             
-            // 1. Repeler mobs si invaden la zona segura del Santuario Mágico
+            // Repeler mobs si invaden la zona segura del Santuario Mágico
             const sanctuary = this.mapManager.sanctuary;
             if (sanctuary) {
                 activeEnemies.forEach(enemy => {
@@ -52,14 +53,14 @@ class GameEngine {
                 });
             }
 
-            // 2. Procesar combate, XP, respawns y efectos
+            // Procesar combate, XP, respawns y efectos
             this.combatSystem.processPlayerAttack(this.player, activeEnemies, this.canvas.width, this.canvas.height);
             this.combatSystem.processEnemyAttacks(this.player, activeEnemies);
             this.combatSystem.updateRespawns(activeEnemies);
             this.particleSystem.update();
             this.combatSystem.updateFloatingTexts();
 
-            // 3. Actualizar entidades con Delta Time
+            // Actualizar entidades con Delta Time
             this.player.update(this.inputManager, this.mapManager, activeObjects, activeEnemies, dt);
 
             activeEnemies.forEach(enemy => {
@@ -73,11 +74,6 @@ class GameEngine {
     render(timestamp) {
         try {
             this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
-
-            // Si el móvil está en vertical, mostrar advertencia de giro
-            if (this.screenManager.drawOrientationWarning(this.ctx, this.canvas.width, this.canvas.height)) {
-                return;
-            }
 
             // Obtener desplazamiento de Screen Shake
             const shake = this.combatSystem.getScreenShakeOffset();
