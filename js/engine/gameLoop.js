@@ -10,7 +10,7 @@ class GameEngine {
     constructor() {
         this.canvas = document.getElementById('gameCanvas');
         if (!this.canvas) {
-            console.error("Canvas no encontrado");
+            console.error("No se encontró el canvas con ID 'gameCanvas'");
             return;
         }
         this.ctx = this.canvas.getContext('2d');
@@ -18,7 +18,7 @@ class GameEngine {
         this.resizeCanvas();
         window.addEventListener('resize', () => this.resizeCanvas());
         window.addEventListener('orientationchange', () => {
-            setTimeout(() => this.resizeCanvas(), 200);
+            setTimeout(() => this.resizeCanvas(), 250);
         });
 
         try {
@@ -27,12 +27,13 @@ class GameEngine {
             this.particleSystem = new ParticleSystem();
             this.combatSystem = new CombatSystem(this.particleSystem);
 
+            // Inicializar al jugador exactamente en el centro del Santuario Ancestral (8.0, 8.0)
             this.player = new Player(8.0, 8.0); 
             this.inputManager = new InputManager(this.canvas, this.player);
 
             this.mapManager.update(this.player.x, this.player.y);
         } catch (err) {
-            console.error("Error al inicializar subsistemas del motor:", err);
+            console.error("Error crítico al inicializar el GameEngine:", err);
         }
 
         this.lastTime = performance.now();
@@ -57,7 +58,7 @@ class GameEngine {
             const activeObjects = this.mapManager.getActiveObjects() || [];
             const activeEnemies = this.mapManager.getActiveEnemies() || [];
             
-            // Comprobar y repeler mobs que invadan el radio de seguridad del Santuario
+            // Conexión clave: Repulsión de mobs según su nivel utilizando el perímetro seguro del Santuario Hexagonal
             const sanctuary = this.mapManager.sanctuary;
             if (sanctuary && activeEnemies.length > 0) {
                 activeEnemies.forEach(enemy => {
@@ -81,7 +82,7 @@ class GameEngine {
                 }
             });
         } catch (e) {
-            console.error("Error en update():", e);
+            console.error("Error en el ciclo update():", e);
         }
     }
 
@@ -97,6 +98,7 @@ class GameEngine {
             let cameraOffsetX = (this.canvas.width / 2) - playerScreen.x + shake.x;
             let cameraOffsetY = (this.canvas.height / 2) - playerScreen.y + shake.y;
 
+            // 1. Dibujar mapa, terreno y el Santuario Hexagonal Ancestral
             if (this.mapManager) {
                 this.mapManager.draw(this.ctx, cameraOffsetX, cameraOffsetY, timestamp);
             }
@@ -104,6 +106,7 @@ class GameEngine {
             const activeObjects = this.mapManager ? (this.mapManager.getActiveObjects() || []) : [];
             const activeEnemies = this.mapManager ? (this.mapManager.getActiveEnemies() || []) : [];
             
+            // 2. Ordenamiento por profundidad (Y-Sorting) de entidades del mundo
             const renderList = [
                 this.player,
                 ...activeEnemies,
@@ -118,6 +121,7 @@ class GameEngine {
                 }
             });
 
+            // 3. UI, partículas, textos flotantes y mandos táctiles
             if (this.particleSystem) {
                 this.particleSystem.draw(this.ctx, cameraOffsetX, cameraOffsetY, Iso);
                 this.particleSystem.drawConfettiUI(this.ctx);
@@ -129,7 +133,7 @@ class GameEngine {
                 this.inputManager.draw(this.ctx);
             }
         } catch (e) {
-            console.error("Error en render():", e);
+            console.error("Error en el ciclo render():", e);
         }
     }
 
