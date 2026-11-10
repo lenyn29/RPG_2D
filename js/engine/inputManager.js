@@ -158,22 +158,10 @@ export class InputManager {
         ctx.textBaseline = 'middle';
         ctx.fillText('⚔️', this.attackButton.x, this.attackButton.y);
 
-        // 3. Dibujar Botón de Reinicio si el Héroe ha muerto y terminó su animación
-        if (this.player && this.player.showRestartButton) {
-            const bx = ctx.canvas.width / 2;
-            const by = ctx.canvas.height / 2 + 50;
-            
-            ctx.fillStyle = 'rgba(239, 68, 68, 0.9)';
-            ctx.fillRect(bx - 90, by - 25, 180, 50);
-            ctx.strokeStyle = '#FFFFFF';
-            ctx.lineWidth = 2;
-            ctx.strokeRect(bx - 90, by - 25, 180, 50);
-
-            ctx.fillStyle = '#FFFFFF';
-            ctx.font = 'bold 16px sans-serif';
-            ctx.textAlign = 'center';
-            ctx.textBaseline = 'middle';
-            ctx.fillText('🔄 REINICIAR', bx, by);
+        // Dentro del método de manejo de clics del botón de reinicio en inputManager.js:
+        // Reemplazar la recarga de página por:
+        if (this.player.showRestartButton) {
+            this.player.respawnAtSanctuary();
         }
     }
 }
