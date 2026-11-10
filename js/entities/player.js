@@ -35,13 +35,14 @@ export class Player {
         this.hurtTimer = 0;
         this.invincibleFrames = 0;
         this.knockbackAngle = 0;
+        
         this.isAttacking = false;
         this.attackCooldown = 0;
-        
+        this.hasDealtDamageThisAttack = false; // Bandera para evitar daño múltiple por el mismo ataque
+
         this.deathCounter = 0;
         this.showRestartButton = false;
 
-        // Aviso estilo flash flotante sobre el personaje
         this.levelUpFlash = {
             active: false,
             timer: 0,
@@ -61,17 +62,14 @@ export class Player {
         this.xp = 0;
         this.maxXp = ProgressionSystem.calculateXpNeeded(this.level);
         
-        // Aumentar HP máximo y recuperar el 20% de vida al subir de nivel
         this.maxHp = ProgressionSystem.calculateMaxHp(this.level);
         const healAmount = this.maxHp * 0.20;
         this.hp = Math.min(this.maxHp, this.hp + healAmount);
-
         this.attackPower = ProgressionSystem.calculateDamage(this.level);
 
-        // Activar aviso tipo flash corto sobre el personaje
         this.levelUpFlash = {
             active: true,
-            timer: 75, // Flash rápido de 1.2 segundos (75 frames)
+            timer: 75,
             text: `⬆️ Lv ${this.level}!`
         };
 
@@ -121,16 +119,14 @@ export class Player {
         this.state = 'attack';
         this.currentFrame = 0;
         this.animTimer = 0;
-        this.attackCooldown = 35; 
+        this.attackCooldown = 45; // Cooldown estricto entre ataques
+        this.hasDealtDamageThisAttack = false; // Resetear bandera de impacto
     }
 
     update(inputManager, mapManager, objects = [], enemies = []) {
-        // Actualizar temporizador del flash de nivel
         if (this.levelUpFlash.active) {
             this.levelUpFlash.timer--;
-            if (this.levelUpFlash.timer <= 0) {
-                this.levelUpFlash.active = false;
-            }
+            if (this.levelUpFlash.timer <= 0) this.levelUpFlash.active = false;
         }
 
         if (this.state === 'dead') {
@@ -140,11 +136,8 @@ export class Player {
                 if (this.currentFrame >= 5) this.currentFrame = 4;
                 this.animTimer = 0;
             }
-
             this.deathCounter++;
-            if (this.deathCounter >= 300) {
-                this.showRestartButton = true;
-            }
+            if (this.deathCounter >= 300) this.showRestartButton = true;
             return;
         }
 
@@ -178,6 +171,7 @@ export class Player {
                     this.isAttacking = false;
                     this.state = 'idle';
                     this.currentFrame = 0;
+                    this.hasDealtDamageThisAttack = false;
                 }
                 this.animTimer = 0;
             }
@@ -291,15 +285,13 @@ export class Player {
         if (this.state !== 'dead') {
             this.drawInfoBox(ctx, renderX, renderY - 60);
 
-            // Dibujar notificación flash pequeña justo arriba del personaje si está activa
             if (this.levelUpFlash.active) {
                 ctx.save();
-                ctx.fillStyle = '#eab308'; // Color dorado brillante
+                ctx.fillStyle = '#eab308';
                 ctx.font = 'bold 13px sans-serif';
                 ctx.textAlign = 'center';
                 ctx.shadowColor = '#000000';
                 ctx.shadowBlur = 4;
-                // Flota levemente hacia arriba según el temporizador
                 const offsetY = -75 - ((75 - this.levelUpFlash.timer) * 0.2);
                 ctx.fillText(this.levelUpFlash.text, renderX, renderY + offsetY);
                 ctx.restore();
