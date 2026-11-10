@@ -2,17 +2,19 @@ import { Iso } from '../engine/isometric.js';
 
 export class Sanctuary {
     constructor(worldX, worldY) {
-        this.x = worldX; 
-        this.y = worldY; 
+        this.x = worldX || 8.0; 
+        this.y = worldY || 8.0; 
         this.radius = 1.8; 
         this.pulseAnim = 0;
     }
 
     getSafetyRadius(mobLevel) {
-        return mobLevel * 10;
+        const lvl = isNaN(mobLevel) ? 1 : mobLevel;
+        return lvl * 10;
     }
 
     isMobInSafeArea(mobX, mobY, mobLevel) {
+        if (isNaN(mobX) || isNaN(mobY)) return false;
         const dx = mobX - this.x;
         const dy = mobY - this.y;
         const dist = Math.sqrt(dx * dx + dy * dy);
@@ -21,7 +23,7 @@ export class Sanctuary {
     }
 
     repelMob(mob) {
-        if (!mob) return;
+        if (!mob || isNaN(mob.x) || isNaN(mob.y)) return;
         const dx = mob.x - this.x;
         const dy = mob.y - this.y;
         const dist = Math.sqrt(dx * dx + dy * dy);
@@ -35,14 +37,15 @@ export class Sanctuary {
     }
 
     update(dt = 1) {
-        this.pulseAnim += 0.04 * dt;
+        const safeDt = isNaN(dt) ? 1 : dt;
+        this.pulseAnim += 0.04 * safeDt;
     }
 
     draw(ctx, cameraOffsetX, cameraOffsetY, timestamp = 0) {
         if (!ctx) return;
         const screen = Iso.toScreen(this.x, this.y);
-        const renderX = screen.x + cameraOffsetX;
-        const renderY = screen.y + cameraOffsetY;
+        const renderX = screen.x + (isNaN(cameraOffsetX) ? 0 : cameraOffsetX);
+        const renderY = screen.y + (isNaN(cameraOffsetY) ? 0 : cameraOffsetY);
 
         ctx.save();
         
