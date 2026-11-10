@@ -1,7 +1,7 @@
 export class CombatSystem {
     constructor(particleSystem) {
         this.particles = particleSystem;
-        this.floatingTexts = []; // Almacena los textos de daño flotante
+        this.floatingTexts = []; 
     }
 
     addFloatingText(text, x, y, color = '#ef4444') {
@@ -9,9 +9,9 @@ export class CombatSystem {
             text: text,
             x: x,
             y: y,
-            life: 45, // Duración en frames
+            life: 45, 
             color: color,
-            vy: -0.015 // Velocidad de ascenso
+            vy: -0.015 
         });
     }
 
@@ -19,6 +19,9 @@ export class CombatSystem {
         if (!player.isAttacking) return;
 
         const attackRange = 1.3;
+        let enemiesInRange = [];
+
+        // 1. Encontrar enemigos dentro del radio de alcance del ataque
         enemies.forEach(enemy => {
             if (enemy.state === 'dead' || enemy.isHurt) return;
 
@@ -27,21 +30,43 @@ export class CombatSystem {
             const dist = Math.sqrt(dx * dx + dy * dy);
 
             if (dist <= attackRange) {
-                enemy.hp -= 1; // 1 punto de daño estricto
-                enemy.applyDamage(player.x, player.y);
-                this.particles.emitBlood(enemy.x, enemy.y, 6);
-                this.addFloatingText("-1", enemy.x, enemy.y - 0.5, '#ef4444');
-
-                if (enemy.hp <= 0) {
-                    enemy.hp = 0;
-                    enemy.state = 'dead';
-                    enemy.currentFrame = 0;
-                    enemy.animTimer = 0;
-                    enemy.fadeTimer = 180; 
-                    enemy.respawnTimer = enemy.level * 5 * 60; // 5s por nivel
-                }
+                enemiesInRange.push({ enemy, dist, dx, dy });
             }
         });
+
+        if (enemiesInRange.length > 0) {
+            // Ordenar por cercanía para seleccionar al más cercano
+            enemiesInRange.sort((a, b) => a.dist - b.dist);
+            const closest = enemiesInRange[0];
+
+            // 2. Hacer que el personaje se voltee automáticamente hacia el enemigo más cercano
+            if (Math.abs(closest.dx) > Math.abs(closest.dy)) {
+                player.facing = closest.dx > 0 ? 'right' : 'left';
+            } else {
+                player.facing = closest.dy > 0 ? 'down' : 'up';
+            }
+
+            // 3. Regla de daño: 1 enemigo = 1 de daño completo. 2 o más = daño reducido/dividido (mitad de daño)
+            const damageAmount = enemiesInRange.length === 1 ? 1 : 0.5;
+
+            enemiesInRange.forEach(item => {
+                const targetEnemy = item.enemy;
+                targetEnemy.hp -= damageAmount;
+                targetEnemy.applyDamage(player.x, player.y);
+                this.particles.emitBlood(targetEnemy.x, targetEnemy.y, damageAmount === 1 ? 6 : 3);
+                
+                this.addFloatingText(`-${damageAmount}`, targetEnemy.x, targetEnemy.y - 0.5, '#ef4444');
+
+                if (targetEnemy.hp <= 0) {
+                    targetEnemy.hp = 0;
+                    targetEnemy.state = 'dead';
+                    targetEnemy.currentFrame = 0;
+                    targetEnemy.animTimer = 0;
+                    targetEnemy.fadeTimer = 180; 
+                    targetEnemy.respawnTimer = targetEnemy.level * 5 * 60; // 5s por nivel
+                }
+            });
+        }
     }
 
     processEnemyAttacks(player, enemies) {
@@ -59,7 +84,7 @@ export class CombatSystem {
                     player.hp -= 1; // 1 punto de daño al héroe
                     player.takeDamage(enemy.x, enemy.y);
                     this.particles.emitBlood(player.x, player.y, 6);
-                    this.addFloatingText("-1", player.x, player.y - 0.5, '#3b82f6'); // Daño azulado o rojo al player
+                    this.addFloatingText("-1", player.x, player.y - 0.5, '#3b82f6'); 
 
                     if (player.hp <= 0) {
                         player.hp = 0;
