@@ -36,6 +36,15 @@ class GameEngine {
     }
 
     update(dt) {
+        // Añadir en update(dt) dentro de gameLoop.js:
+        const sanctuary = this.mapManager.sanctuary;
+              if (sanctuary) {
+                  activeEnemies.forEach(enemy => {
+              if (enemy.state !== 'dead' && sanctuary.isMobInSafeArea(enemy.x, enemy.y, enemy.level)) {
+                  sanctuary.repelMob(enemy);
+                  }
+              });
+        }
         try {
             this.mapManager.update(this.player.x, this.player.y);
             const activeObjects = this.mapManager.getActiveObjects() || [];
