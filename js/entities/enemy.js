@@ -1,4 +1,5 @@
 import { Iso } from '../engine/isometric.js';
+import { ProgressionSystem } from '../engine/progressionSystem.js';
 
 export class Enemy {
     constructor(startX, startY, type = 'slime', level = 1) {
@@ -7,7 +8,7 @@ export class Enemy {
         this.x = startX;
         this.y = startY;
         this.type = type;
-        this.level = level; 
+        this.level = level; // Nivel 1 a 3
         this.speed = 0.018; 
         this.radius = 0.35; 
         
@@ -21,8 +22,10 @@ export class Enemy {
         this.scale = 1.6;
 
         this.name = `Slime lv ${this.level}`;
-        this.maxHp = 10;
-        this.hp = 10;
+        this.maxHp = ProgressionSystem.calculateMaxHp(this.level);
+        this.hp = this.maxHp;
+        this.attackPower = ProgressionSystem.calculateDamage(this.level);
+
         this.respawnTimer = 0; 
         this.fadeTimer = 0; 
 
@@ -212,24 +215,15 @@ export class Enemy {
             let maxFrames = 6;
 
             if (this.state === 'dead') {
-                row = 12; 
-                maxFrames = 5;
+                row = 12; maxFrames = 5;
             } else if (this.state === 'idle') {
-                if (this.facing === 'down') row = 0;
-                else if (this.facing === 'right' || this.facing === 'left') row = 1;
-                else if (this.facing === 'up') row = 2;
+                row = this.facing === 'down' ? 0 : (this.facing === 'up' ? 2 : 1);
             } else if (this.state === 'walk' || this.state === 'flee') {
-                if (this.facing === 'down') row = 3;
-                else if (this.facing === 'right' || this.facing === 'left') row = 4;
-                else if (this.facing === 'up') row = 5;
+                row = this.facing === 'down' ? 3 : (this.facing === 'up' ? 5 : 4);
             } else if (this.state === 'attack') {
-                if (this.facing === 'down') row = 6;
-                else if (this.facing === 'right' || this.facing === 'left') row = 7;
-                else if (this.facing === 'up') row = 8;
+                row = this.facing === 'down' ? 6 : (this.facing === 'up' ? 8 : 7);
             } else if (this.state === 'hurt') {
-                if (this.facing === 'down') row = 9;
-                else if (this.facing === 'right' || this.facing === 'left') row = 10;
-                else if (this.facing === 'up') row = 11;
+                row = this.facing === 'down' ? 9 : (this.facing === 'up' ? 11 : 10);
             }
 
             const safeFrame = this.currentFrame % maxFrames;
@@ -256,7 +250,7 @@ export class Enemy {
         }
 
         if (this.state !== 'dead') {
-            this.drawInfoBox(ctx, renderX, renderY - 48); // Margen superior adecuado
+            this.drawInfoBox(ctx, renderX, renderY - 48);
         }
     }
 
@@ -268,7 +262,7 @@ export class Enemy {
 
         const barWidth = 32;
         const barHeight = 4;
-        const barY = y + 5; // Margen de separación limpio
+        const barY = y + 5;
 
         ctx.fillStyle = 'rgba(0, 0, 0, 0.6)';
         ctx.fillRect(x - barWidth / 2, barY, barWidth, barHeight);
