@@ -3,6 +3,8 @@ import { ProgressionSystem } from '../engine/progressionSystem.js';
 
 export class Player {
     constructor(startX, startY) {
+        this.startX = startX; // Guardar punto de reaparición inicial
+        this.startY = startY;
         this.x = startX; 
         this.y = startY; 
         this.speed = 0.052; 
@@ -51,6 +53,19 @@ export class Player {
         };
     }
 
+    // Método para revivir al héroe en el santuario mágico con vida plena
+    respawnAtSanctuary() {
+        this.x = this.startX;
+        this.y = this.startY;
+        this.maxHp = ProgressionSystem.calculateMaxHp(this.level);
+        this.hp = this.maxHp;
+        this.state = 'idle';
+        this.deathCounter = 0;
+        this.showRestartButton = false;
+        this.currentFrame = 0;
+        this.animTimer = 0;
+    }
+
     gainXp(amount, particleSystem = null, canvasWidth = 0, canvasHeight = 0) {
         this.xp += amount;
         if (this.xp >= this.maxXp) {
@@ -64,7 +79,7 @@ export class Player {
         this.maxXp = ProgressionSystem.calculateXpNeeded(this.level);
         
         this.maxHp = ProgressionSystem.calculateMaxHp(this.level);
-        const healAmount = this.maxHp * 0.20; // Recuperar exactamente el 20% de HP máximo al subir de nivel
+        const healAmount = this.maxHp * 0.20; 
         this.hp = Math.min(this.maxHp, this.hp + healAmount);
         this.attackPower = ProgressionSystem.calculateDamage(this.level);
 
@@ -131,6 +146,13 @@ export class Player {
             if (this.levelUpFlash.timer <= 0) this.levelUpFlash.active = false;
         }
 
+        // Sanación activa en el Santuario Mágico (si está sobre las coordenadas de inicio)
+        const distToSanctuary = Math.sqrt(Math.pow(this.x - this.startX, 2) + Math.pow(this.y - this.startY, 2));
+        if (distToSanctuary < 1.5 && this.hp < this.maxHp && this.state !== 'dead') {
+            // Curación acelerada del 2% de HP por segundo dentro del santuario
+            this.hp = Math.min(this.maxHp, this.hp + ((this.maxHp * 0.02) / 60) * dt);
+        }
+
         if (this.state === 'dead') {
             this.animTimer += 0.05 * dt;
             if (this.animTimer >= 1) {
@@ -143,7 +165,6 @@ export class Player {
             return;
         }
 
-        // Regeneración del héroe tras 3s (180 frames) de no recibir daño (0.3 HP / seg)
         if (this.hp < this.maxHp) {
             if (this.outOfCombatTimer < 180) {
                 this.outOfCombatTimer += dt;
