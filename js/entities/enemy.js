@@ -28,7 +28,8 @@ export class Enemy {
 
         this.respawnTimer = 0; 
         this.fadeTimer = 0; 
-        this.fleeTimer = 0; // Temporizador de retraso antes de regenerar al huir (3s)
+        this.fleeTimer = 0; 
+        this.wasAttacked = false; // Bandera para enfurecerse si el héroe de mayor nivel ataca
 
         this.animTimer = 0;
         this.currentFrame = 0;
@@ -63,7 +64,8 @@ export class Enemy {
         this.state = 'hurt';
         this.currentFrame = 0;
         this.animTimer = 0;
-        this.fleeTimer = 0; // Reiniciar retraso de huida al recibir daño
+        this.fleeTimer = 0; 
+        this.wasAttacked = true; // ¡Se activa la furia al ser golpeado!
         this.moveAngle = Math.atan2(this.y - sourceY, this.x - sourceX);
     }
 
@@ -93,20 +95,22 @@ export class Enemy {
             targetDist = Math.sqrt(pdx * pdx + pdy * pdy);
         }
 
-        const halfHp = this.maxHp / 2;
-        if (this.hp < halfHp) {
+        // Umbral de huida ajustado a menos del 30% de vida
+        const fleeThreshold = this.maxHp * 0.30;
+        if (this.hp < fleeThreshold) {
             this.state = 'flee';
-            // Tras 3 segundos (180 frames) de huida ininterrumpida, regenera 0.3 HP por segundo
+            // Tras 3 segundos de huida ininterrumpida, regenera 0.3 HP por segundo
             if (this.fleeTimer < 180) {
                 this.fleeTimer++;
             } else {
-                this.hp = Math.min(halfHp, this.hp + (0.3 / 60));
+                this.hp = Math.min(fleeThreshold, this.hp + (0.3 / 60));
             }
         } else {
             this.fleeTimer = 0;
         }
 
-        const playerIsHigherLevel = player && (player.level > this.level);
+        // Si tu nivel es mayor, te ignora... a menos que lo hayas atacado (wasAttacked)
+        const playerIsHigherLevel = player && (player.level > this.level) && !this.wasAttacked;
 
         if (this.state === 'flee' && player) {
             const fleeAngle = Math.atan2(this.y - player.y, this.x - player.x);
