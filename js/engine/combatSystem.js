@@ -8,7 +8,7 @@ export class CombatSystem {
         this.screenShakeIntensity = 0;
     }
 
-    triggerScreenShake(durationFrames = 12, intensity = 6) {
+    triggerScreenShake(durationFrames = 12, intensity = 5) {
         this.screenShakeTimer = durationFrames;
         this.screenShakeIntensity = intensity;
     }
@@ -26,16 +26,16 @@ export class CombatSystem {
             text: text,
             x: x,
             y: y,
-            life: 45, 
+            life: 50, 
             color: color,
-            vy: -0.015 
+            vy: -0.018 
         });
     }
 
     processPlayerAttack(player, enemies, canvasWidth, canvasHeight) {
         if (!player.isAttacking || player.hasDealtDamageThisAttack) return;
 
-        const attackRange = 1.3;
+        const attackRange = 1.4;
         let enemiesInRange = [];
 
         enemies.forEach(enemy => {
@@ -51,7 +51,7 @@ export class CombatSystem {
 
         if (enemiesInRange.length > 0) {
             player.hasDealtDamageThisAttack = true;
-            this.triggerScreenShake(10, 5); // Sacudida de cámara al golpear
+            this.triggerScreenShake(12, 6); // Sacudida épica al golpear
 
             enemiesInRange.sort((a, b) => a.dist - b.dist);
             const closest = enemiesInRange[0];
@@ -62,19 +62,27 @@ export class CombatSystem {
                 player.facing = closest.dy > 0 ? 'down' : 'up';
             }
 
-            const baseDamage = player.attackPower || 1;
-            const affectedEnemies = enemiesInRange.slice(0, 3); // Máximo 3 enemigos afectados
+            const baseDamage = player.attackPower || 1.5;
+            const affectedEnemies = enemiesInRange.slice(0, 3); // Máximo 3 objetivos en área
 
             affectedEnemies.forEach((item, index) => {
                 const targetEnemy = item.enemy;
-                const damageAmount = (index === 0) ? baseDamage : (baseDamage / 2);
-                const roundedDamage = Math.round(damageAmount * 10) / 10;
-
-                targetEnemy.hp -= roundedDamage;
-                targetEnemy.applyDamage(player.x, player.y);
-                this.particles.emitBlood(targetEnemy.x, targetEnemy.y, index === 0 ? 5 : 2);
                 
-                this.addFloatingText(`-${roundedDamage}`, targetEnemy.x, targetEnemy.y - 0.5, '#ef4444');
+                // Probabilidad de Golpe Crítico (15% de chance, multiplica x1.5 el daño)
+                const isCrit = Math.random() < 0.15;
+                let damageAmount = (index === 0) ? baseDamage : (baseDamage / 2);
+                if (isCrit) damageAmount *= 1.5;
+
+                const finalDamage = Math.round(damageAmount * 10) / 10;
+
+                targetEnemy.hp -= finalDamage;
+                targetEnemy.applyDamage(player.x, player.y);
+                this.particles.emitBlood(targetEnemy.x, targetEnemy.y, index === 0 ? 6 : 2);
+                
+                // Color dorado brillante para críticos, rojo para daño normal
+                const textColor = isCrit ? '#eab308' : '#ef4444';
+                const textDisplay = isCrit ? `💥-${finalDamage}` : `-${finalDamage}`;
+                this.addFloatingText(textDisplay, targetEnemy.x, targetEnemy.y - 0.5, textColor);
 
                 if (targetEnemy.hp <= 0) {
                     targetEnemy.hp = 0;
@@ -82,11 +90,11 @@ export class CombatSystem {
                     targetEnemy.currentFrame = 0;
                     targetEnemy.animTimer = 0;
                     targetEnemy.fadeTimer = 180; 
-                    targetEnemy.respawnTimer = targetEnemy.level * 5 * 60; 
+                    targetEnemy.respawnTimer = targetEnemy.level * 6 * 60; // 6 segundos por nivel de respawn
 
                     const xpReward = ProgressionSystem.getEnemyXpReward(targetEnemy.level);
                     player.gainXp(xpReward, this.particles, canvasWidth, canvasHeight);
-                    this.addFloatingText(`+${xpReward} XP`, player.x, player.y - 0.8, '#3b82f6');
+                    this.addFloatingText(`+${xpReward} XP`, player.x, player.y - 0.9, '#3b82f6');
                 }
             });
         }
@@ -102,14 +110,14 @@ export class CombatSystem {
             const dy = player.y - enemy.y;
             const dist = Math.sqrt(dx * dx + dy * dy);
 
-            if (enemy.state === 'attack' && dist <= 0.8) {
+            if (enemy.state === 'attack' && dist <= 0.85) {
                 if (!player.isHurt && player.invincibleFrames <= 0) {
                     const enemyDamage = Math.round((enemy.attackPower || 1) * 10) / 10;
                     player.hp -= enemyDamage;
                     player.takeDamage(enemy.x, enemy.y);
-                    this.triggerScreenShake(14, 7);
-                    this.particles.emitBlood(player.x, player.y, 6);
-                    this.addFloatingText(`-${enemyDamage}`, player.x, player.y - 0.5, '#3b82f6'); 
+                    this.triggerScreenShake(16, 8); // Gran impacto al recibir daño del monstruo
+                    this.particles.emitBlood(player.x, player.y, 7);
+                    this.addFloatingText(`-${enemyDamage}`, player.x, player.y - 0.5, '#06b6d4'); 
 
                     if (player.hp <= 0) {
                         player.hp = 0;
@@ -131,11 +139,13 @@ export class CombatSystem {
                     if (enemy.respawnTimer <= 0) {
                         enemy.x = enemy.spawnX;
                         enemy.y = enemy.spawnY;
-                        enemy.maxHp = ProgressionSystem.calculateMaxHp(enemy.level);
+                        const stats = ProgressionSystem.getEnemyStats(enemy.level);
+                        enemy.maxHp = stats.hp;
                         enemy.hp = enemy.maxHp;
                         enemy.state = 'idle';
                         enemy.currentFrame = 0;
                         enemy.fadeTimer = 0;
+                        enemy.wasAttacked = false;
                     }
                 }
             }
@@ -161,10 +171,10 @@ export class CombatSystem {
 
             ctx.save();
             ctx.fillStyle = ft.color;
-            ctx.font = 'bold 14px sans-serif';
+            ctx.font = 'bold 15px sans-serif';
             ctx.textAlign = 'center';
             ctx.shadowColor = '#000000';
-            ctx.shadowBlur = 4;
+            ctx.shadowBlur = 5;
             ctx.fillText(ft.text, renderX, renderY);
             ctx.restore();
         });
