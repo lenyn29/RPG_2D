@@ -18,7 +18,8 @@ export class CombatSystem {
     }
 
     processPlayerAttack(player, enemies, canvasWidth, canvasHeight) {
-        if (!player.isAttacking) return;
+        // Si no está atacando o ya aplicó el daño en este ataque, no hace nada
+        if (!player.isAttacking || player.hasDealtDamageThisAttack) return;
 
         const attackRange = 1.3;
         let enemiesInRange = [];
@@ -36,26 +37,32 @@ export class CombatSystem {
         });
 
         if (enemiesInRange.length > 0) {
+            // Marcar que este ataque ya infligió daño para evitar daño por frame múltiple
+            player.hasDealtDamageThisAttack = true;
+
+            // Ordenar por cercanía
             enemiesInRange.sort((a, b) => a.dist - b.dist);
             const closest = enemiesInRange[0];
 
+            // Girar al héroe hacia el objetivo principal
             if (Math.abs(closest.dx) > Math.abs(closest.dy)) {
                 player.facing = closest.dx > 0 ? 'right' : 'left';
             } else {
                 player.facing = closest.dy > 0 ? 'down' : 'up';
             }
 
-            // Poder de ataque exacto del héroe (1 para nivel 1)
+            // Limitar área de daño a máximo 3 enemigos
+            const affectedEnemies = enemiesInRange.slice(0, 3);
             const baseDamage = player.attackPower || 1;
-            const damageAmount = enemiesInRange.length === 1 ? baseDamage : baseDamage / 2;
 
-            enemiesInRange.forEach(item => {
+            affectedEnemies.forEach((item, index) => {
                 const targetEnemy = item.enemy;
-                
-                // Restar el daño exacto a la vida del enemigo
+                // El más cercano (índice 0) recibe daño completo; los demás (máximo 2 más) reciben la mitad
+                const damageAmount = (index === 0) ? baseDamage : (baseDamage / 2);
+
                 targetEnemy.hp -= damageAmount;
                 targetEnemy.applyDamage(player.x, player.y);
-                this.particles.emitBlood(targetEnemy.x, targetEnemy.y, 5);
+                this.particles.emitBlood(targetEnemy.x, targetEnemy.y, index === 0 ? 5 : 2);
                 
                 this.addFloatingText(`-${damageAmount.toFixed(1)}`, targetEnemy.x, targetEnemy.y - 0.5, '#ef4444');
 
@@ -113,7 +120,7 @@ export class CombatSystem {
                     if (enemy.respawnTimer <= 0) {
                         enemy.x = enemy.spawnX;
                         enemy.y = enemy.spawnY;
-                        enemy.maxHp = ProgressionSystem.calculateMaxHp(enemy.level); // Asegurar 10 HP base en respawn
+                        enemy.maxHp = ProgressionSystem.calculateMaxHp(enemy.level);
                         enemy.hp = enemy.maxHp;
                         enemy.state = 'idle';
                         enemy.currentFrame = 0;
