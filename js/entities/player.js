@@ -160,7 +160,9 @@ export class Player {
                 this.animTimer = 0;
             }
             this.deathCounter += dt;
-            if (this.deathCounter >= 300) this.showRestartButton = true;
+            if (this.deathCounter >= 180) { // 3 segundos a 60fps
+                this.showRestartButton = true;
+            }
             return;
         }
 
