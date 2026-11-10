@@ -32,7 +32,7 @@ class GameEngine {
 
             this.mapManager.update(this.player.x, this.player.y);
         } catch (err) {
-            console.error("Error al inicializar subsistemas:", err);
+            console.error("Error al inicializar subsistemas del motor:", err);
         }
 
         this.lastTime = performance.now();
@@ -41,7 +41,6 @@ class GameEngine {
     }
 
     resizeCanvas() {
-        // Dimensiones seguras para evitar cero absoluto en móviles Android
         const w = window.innerWidth || document.documentElement.clientWidth || screen.width;
         const h = window.innerHeight || document.documentElement.clientHeight || screen.height;
         this.canvas.width = w > 0 ? w : 800;
@@ -58,7 +57,7 @@ class GameEngine {
             const activeObjects = this.mapManager.getActiveObjects() || [];
             const activeEnemies = this.mapManager.getActiveEnemies() || [];
             
-            // Repulsión del Santuario Mágico segura
+            // Comprobar y repeler mobs que invadan el radio de seguridad del Santuario
             const sanctuary = this.mapManager.sanctuary;
             if (sanctuary && activeEnemies.length > 0) {
                 activeEnemies.forEach(enemy => {
