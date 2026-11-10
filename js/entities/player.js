@@ -5,7 +5,7 @@ export class Player {
     constructor(startX, startY) {
         this.x = startX; 
         this.y = startY; 
-        this.speed = 0.055; 
+        this.speed = 0.052; 
         this.radius = 0.35; 
         
         this.sprite = new Image();
@@ -42,7 +42,7 @@ export class Player {
 
         this.deathCounter = 0;
         this.showRestartButton = false;
-        this.outOfCombatTimer = 0; // Temporizador para regeneración fuera de combate (3s)
+        this.outOfCombatTimer = 0;
 
         this.levelUpFlash = {
             active: false,
@@ -64,7 +64,7 @@ export class Player {
         this.maxXp = ProgressionSystem.calculateXpNeeded(this.level);
         
         this.maxHp = ProgressionSystem.calculateMaxHp(this.level);
-        const healAmount = this.maxHp * 0.20;
+        const healAmount = this.maxHp * 0.20; // Recuperar exactamente el 20% de HP máximo al subir de nivel
         this.hp = Math.min(this.maxHp, this.hp + healAmount);
         this.attackPower = ProgressionSystem.calculateDamage(this.level);
 
@@ -111,7 +111,7 @@ export class Player {
         this.hurtTimer = 20;
         this.invincibleFrames = 40;
         this.knockbackAngle = Math.atan2(this.y - attackerY, this.x - attackerX);
-        this.outOfCombatTimer = 0; // Reiniciar contador al recibir daño
+        this.outOfCombatTimer = 0;
     }
 
     performAttack() {
@@ -121,46 +121,46 @@ export class Player {
         this.state = 'attack';
         this.currentFrame = 0;
         this.animTimer = 0;
-        this.attackCooldown = 45; 
+        this.attackCooldown = 40; 
         this.hasDealtDamageThisAttack = false; 
     }
 
-    update(inputManager, mapManager, objects = [], enemies = []) {
+    update(inputManager, mapManager, objects = [], enemies = [], dt = 1) {
         if (this.levelUpFlash.active) {
-            this.levelUpFlash.timer--;
+            this.levelUpFlash.timer -= dt;
             if (this.levelUpFlash.timer <= 0) this.levelUpFlash.active = false;
         }
 
         if (this.state === 'dead') {
-            this.animTimer += 0.05;
+            this.animTimer += 0.05 * dt;
             if (this.animTimer >= 1) {
                 this.currentFrame++;
                 if (this.currentFrame >= 5) this.currentFrame = 4;
                 this.animTimer = 0;
             }
-            this.deathCounter++;
+            this.deathCounter += dt;
             if (this.deathCounter >= 300) this.showRestartButton = true;
             return;
         }
 
-        // Regeneración del héroe: Tras 3s (180 frames) de no recibir daño, recupera 0.3 HP por segundo
+        // Regeneración del héroe tras 3s (180 frames) de no recibir daño (0.3 HP / seg)
         if (this.hp < this.maxHp) {
             if (this.outOfCombatTimer < 180) {
-                this.outOfCombatTimer++;
+                this.outOfCombatTimer += dt;
             } else {
-                this.hp = Math.min(this.maxHp, this.hp + (0.3 / 60));
+                this.hp = Math.min(this.maxHp, this.hp + ((0.3 / 60) * dt));
             }
         }
 
-        if (this.attackCooldown > 0) this.attackCooldown--;
-        if (this.invincibleFrames > 0) this.invincibleFrames--;
+        if (this.attackCooldown > 0) this.attackCooldown -= dt;
+        if (this.invincibleFrames > 0) this.invincibleFrames -= dt;
 
         if (inputManager.isAttackTriggered()) {
             this.performAttack();
         }
 
         if (this.isHurt) {
-            const kbSpeed = 0.035;
+            const kbSpeed = 0.035 * dt;
             const nextX = this.x + Math.cos(this.knockbackAngle) * kbSpeed;
             const nextY = this.y + Math.sin(this.knockbackAngle) * kbSpeed;
 
@@ -169,13 +169,13 @@ export class Player {
                 this.y = nextY;
             }
 
-            this.hurtTimer--;
+            this.hurtTimer -= dt;
             if (this.hurtTimer <= 0) this.isHurt = false;
             return;
         }
 
         if (this.isAttacking) {
-            this.animTimer += 0.2;
+            this.animTimer += 0.22 * dt;
             if (this.animTimer >= 1) {
                 this.currentFrame++;
                 if (this.currentFrame >= 4) {
@@ -202,8 +202,9 @@ export class Player {
             const targetDy = joyY - joyX;
 
             const worldLen = Math.sqrt(targetDx * targetDx + targetDy * targetDy);
-            const mX = worldLen > 0 ? (targetDx / worldLen) * this.speed : 0;
-            const mY = worldLen > 0 ? (targetDy / worldLen) * this.speed : 0;
+            const moveSpeed = this.speed * dt;
+            const mX = worldLen > 0 ? (targetDx / worldLen) * moveSpeed : 0;
+            const mY = worldLen > 0 ? (targetDy / worldLen) * moveSpeed : 0;
 
             if (this.canMoveTo(this.x + mX, this.y, mapManager, objects, enemies)) this.x += mX;
             if (this.canMoveTo(this.x, this.y + mY, mapManager, objects, enemies)) this.y += mY;
@@ -216,14 +217,14 @@ export class Player {
             else if (angle >= 150 && angle <= 210) this.facing = 'down';
             else this.facing = 'left';
 
-            this.animTimer += 0.25;
+            this.animTimer += 0.25 * dt;
             if (this.animTimer >= 1) {
                 this.currentFrame = (this.currentFrame + 1) % 6;
                 this.animTimer = 0;
             }
         } else {
             this.state = 'idle';
-            this.animTimer += 0.1;
+            this.animTimer += 0.1 * dt;
             if (this.animTimer >= 1) {
                 this.currentFrame = (this.currentFrame + 1) % 6;
                 this.animTimer = 0;
