@@ -1,6 +1,7 @@
 import { Iso } from './isometric.js';
 import { GameObject } from '../entities/gameObject.js';
 import { Enemy } from '../entities/enemy.js';
+import { Sanctuary } from '../entities/sanctuary.js'; // Importar Santuario
 
 export class MapManager {
     constructor(seed = 1337) {
@@ -8,6 +9,9 @@ export class MapManager {
         this.chunkSize = 16; 
         this.chunks = new Map(); 
         this.renderDistance = 2; 
+
+        // Crear el Santuario Mágico principal en el punto de spawn inicial (8, 8)
+        this.sanctuary = new Sanctuary(8.0, 8.0);
     }
 
     _getChunkSeed(chunkX, chunkY) {
@@ -41,7 +45,6 @@ export class MapManager {
                     const randomVal = Math.sin(worldX * 12.9898 + worldY * 78.233 + chunkSeed) * 43758.5453;
                     const cleanRandom = randomVal - Math.floor(randomVal);
 
-                    // Generar recursos estáticos (árboles / rocas)
                     if (cleanRandom < 0.05) {
                         const objType = cleanRandom < 0.025 ? 'rock_ore' : 'tree';
                         objects.push(new GameObject(worldX + 0.5, worldY + 0.5, objType));
@@ -50,12 +53,11 @@ export class MapManager {
             }
         }
 
-        // Generar un grupo de enemigos (cluster de 3 a 5 slimes) por chunk en áreas de pradera
         const clusterSeed = Math.sin(chunkX * 99.1 + chunkY * 11.3 + chunkSeed) * 43758.5453;
         const clusterRandom = clusterSeed - Math.floor(clusterSeed);
         
-        if (clusterRandom < 0.6) { // Probabilidad de campamento de slimes en el chunk
-            const count = Math.floor(3 + clusterRandom * 3); // Entre 3 y 5 slimes
+        if (clusterRandom < 0.6) {
+            const count = Math.floor(3 + clusterRandom * 3);
             const centerX = chunkX * this.chunkSize + 8;
             const centerY = chunkY * this.chunkSize + 8;
 
@@ -65,9 +67,12 @@ export class MapManager {
                 const slimeX = centerX + offsetX;
                 const slimeY = centerY + offsetY;
                 
-                // Nivel aleatorio entre 1 y 3 para los slimes
-                const slimeLevel = Math.floor(1 + Math.random() * 3);
-                enemies.push(new Enemy(slimeX, slimeY, 'slime', slimeLevel));
+                // Asegurar que los slimes no spawneen dentro de la zona segura del santuario inicial
+                const distToSanctuary = Math.sqrt(Math.pow(slimeX - this.sanctuary.x, 2) + Math.pow(slimeY - this.sanctuary.y, 2));
+                if (distToSanctuary > 4.0) {
+                    const slimeLevel = Math.floor(1 + Math.random() * 3);
+                    enemies.push(new Enemy(slimeX, slimeY, 'slime', slimeLevel));
+                }
             }
         }
 
@@ -86,6 +91,11 @@ export class MapManager {
                 this._getOrCreateChunk(playerChunkX + x, playerChunkY + y);
             }
         }
+
+        // Actualizar animación del santuario
+        if (this.sanctuary) {
+            this.sanctuary.update();
+        }
     }
 
     getActiveObjects() {
@@ -98,7 +108,6 @@ export class MapManager {
         return allObjects;
     }
 
-    // Obtener todos los enemigos activos de los chunks cargados
     getActiveEnemies() {
         let allEnemies = [];
         for (let chunk of this.chunks.values()) {
@@ -114,7 +123,6 @@ export class MapManager {
     }
 
     draw(ctx, cameraOffsetX, cameraOffsetY, timestamp = 0) {
-        // [Código de dibujo de mapa igual al anterior]
         for (let chunk of this.chunks.values()) {
             if (!chunk || !chunk.tiles) continue;
 
@@ -136,7 +144,7 @@ export class MapManager {
                     ctx.beginPath();
                     ctx.moveTo(renderX, renderY - Iso.tileHeight / 2);
                     ctx.lineTo(renderX + Iso.tileWidth / 2, renderY);
-                    ctx.lineTo(renderX, renderY + 20); // Suavizado
+                    ctx.lineTo(renderX, renderY + 20);
                     ctx.lineTo(renderX - Iso.tileWidth / 2, renderY);
                     ctx.closePath();
 
@@ -159,6 +167,11 @@ export class MapManager {
                     }
                 }
             }
+        }
+
+        // Dibujar el Santuario Mágico sobre el terreno
+        if (this.sanctuary) {
+            this.sanctuary.draw(ctx, cameraOffsetX, cameraOffsetY, timestamp);
         }
     }
 }
