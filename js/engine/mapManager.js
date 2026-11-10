@@ -1,5 +1,6 @@
 import { Iso } from './isometric.js';
 import { GameObject } from '../entities/gameObject.js';
+import { Enemy } from '../entities/enemy.js';
 
 export class MapManager {
     constructor(seed = 1337) {
@@ -23,6 +24,7 @@ export class MapManager {
 
         const tiles = [];
         const objects = [];
+        const enemies = [];
         const chunkSeed = this._getChunkSeed(chunkX, chunkY);
 
         for (let y = 0; y < this.chunkSize; y++) {
@@ -32,22 +34,44 @@ export class MapManager {
                 const worldY = chunkY * this.chunkSize + y;
 
                 const noise = Math.sin(worldX * 0.2) * Math.cos(worldY * 0.2);
-                const tileType = noise > 0.3 ? 1 : 0; // 0: Pradera, 1: Sendero
+                const tileType = noise > 0.3 ? 1 : 0; 
                 tiles[y][x] = tileType;
 
                 if (tileType === 0) {
                     const randomVal = Math.sin(worldX * 12.9898 + worldY * 78.233 + chunkSeed) * 43758.5453;
                     const cleanRandom = randomVal - Math.floor(randomVal);
 
-                    if (cleanRandom < 0.07) {
-                        const objType = cleanRandom < 0.035 ? 'rock_ore' : 'tree';
+                    // Generar recursos estáticos (árboles / rocas)
+                    if (cleanRandom < 0.05) {
+                        const objType = cleanRandom < 0.025 ? 'rock_ore' : 'tree';
                         objects.push(new GameObject(worldX + 0.5, worldY + 0.5, objType));
                     }
                 }
             }
         }
 
-        const chunkData = { chunkX, chunkY, tiles, objects };
+        // Generar un grupo de enemigos (cluster de 3 a 5 slimes) por chunk en áreas de pradera
+        const clusterSeed = Math.sin(chunkX * 99.1 + chunkY * 11.3 + chunkSeed) * 43758.5453;
+        const clusterRandom = clusterSeed - Math.floor(clusterSeed);
+        
+        if (clusterRandom < 0.6) { // Probabilidad de campamento de slimes en el chunk
+            const count = Math.floor(3 + clusterRandom * 3); // Entre 3 y 5 slimes
+            const centerX = chunkX * this.chunkSize + 8;
+            const centerY = chunkY * this.chunkSize + 8;
+
+            for (let i = 0; i < count; i++) {
+                const offsetX = (Math.random() - 0.5) * 6;
+                const offsetY = (Math.random() - 0.5) * 6;
+                const slimeX = centerX + offsetX;
+                const slimeY = centerY + offsetY;
+                
+                // Nivel aleatorio entre 1 y 3 para los slimes
+                const slimeLevel = Math.floor(1 + Math.random() * 3);
+                enemies.push(new Enemy(slimeX, slimeY, 'slime', slimeLevel));
+            }
+        }
+
+        const chunkData = { chunkX, chunkY, tiles, objects, enemies };
         this.chunks.set(key, chunkData);
         return chunkData;
     }
@@ -74,11 +98,23 @@ export class MapManager {
         return allObjects;
     }
 
+    // Obtener todos los enemigos activos de los chunks cargados
+    getActiveEnemies() {
+        let allEnemies = [];
+        for (let chunk of this.chunks.values()) {
+            if (chunk && chunk.enemies) {
+                allEnemies = allEnemies.concat(chunk.enemies);
+            }
+        }
+        return allEnemies;
+    }
+
     isWalkable(worldX, worldY) {
         return true; 
     }
 
     draw(ctx, cameraOffsetX, cameraOffsetY, timestamp = 0) {
+        // [Código de dibujo de mapa igual al anterior]
         for (let chunk of this.chunks.values()) {
             if (!chunk || !chunk.tiles) continue;
 
@@ -97,36 +133,28 @@ export class MapManager {
                         continue;
                     }
 
-                    // 1. Renderizado de terreno continuo (Sin líneas divisorias)
                     ctx.beginPath();
                     ctx.moveTo(renderX, renderY - Iso.tileHeight / 2);
                     ctx.lineTo(renderX + Iso.tileWidth / 2, renderY);
-                    ctx.lineTo(renderX, renderY + Iso.tileHeight / 2);
+                    ctx.lineTo(renderX, renderY + 20); // Suavizado
                     ctx.lineTo(renderX - Iso.tileWidth / 2, renderY);
                     ctx.closePath();
 
-                    // Color pasto bosque vs tierra húmeda
                     ctx.fillStyle = tileType === 1 ? '#3d2e1e' : '#1a472a'; 
                     ctx.fill();
 
-                    // 2. Animación suave de hierba sobre la pradera
                     if (tileType === 0) {
                         const grassSeed = worldX * 33.3 + worldY * 77.7;
                         const windSpeed = 0.003;
                         const grassSway = Math.sin(timestamp * windSpeed + grassSeed) * 2.5;
 
-                        ctx.strokeStyle = '#2d6a4f'; // Verde hoja para la hierba
+                        ctx.strokeStyle = '#2d6a4f';
                         ctx.lineWidth = 1.2;
                         ctx.lineCap = 'round';
 
                         ctx.beginPath();
                         ctx.moveTo(renderX - 6, renderY);
                         ctx.quadraticCurveTo(renderX - 6 + grassSway, renderY - 6, renderX - 4 + grassSway, renderY - 9);
-                        ctx.stroke();
-
-                        ctx.beginPath();
-                        ctx.moveTo(renderX + 4, renderY + 2);
-                        ctx.quadraticCurveTo(renderX + 4 + grassSway, renderY - 4, renderX + 6 + grassSway, renderY - 7);
                         ctx.stroke();
                     }
                 }
