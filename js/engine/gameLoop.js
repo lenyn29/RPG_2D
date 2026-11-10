@@ -4,6 +4,7 @@ import { ParticleSystem } from './particleSystem.js';
 import { Iso } from './isometric.js';
 import { InputManager } from './inputManager.js';
 import { MapManager } from './mapManager.js';
+import { ScreenManager } from './screenManager.js';
 
 class GameEngine {
     constructor() {
@@ -14,6 +15,8 @@ class GameEngine {
         this.resizeCanvas();
         window.addEventListener('resize', () => this.resizeCanvas());
 
+        // Inicializar subsistemas del motor
+        this.screenManager = new ScreenManager();
         this.mapManager = new MapManager(12345);
         this.particleSystem = new ParticleSystem();
         this.combatSystem = new CombatSystem(this.particleSystem);
@@ -39,16 +42,16 @@ class GameEngine {
             const activeObjects = this.mapManager.getActiveObjects() || [];
             const activeEnemies = this.mapManager.getActiveEnemies() || [];
             
-            this.combatSystem.processPlayerAttack(this.player, activeEnemies, this.canvas.width, this.canvas.height);
+            this.combatSystem.processPlayerAttack(this.player, activeEnemies, activeObjects, this.canvas.width, this.canvas.height);
             this.combatSystem.processEnemyAttacks(this.player, activeEnemies);
             this.combatSystem.updateRespawns(activeEnemies);
             this.particleSystem.update();
             this.combatSystem.updateFloatingTexts();
 
-            this.player.update(this.inputManager, this.mapManager, activeObjects, activeEnemies);
+            this.player.update(this.inputManager, this.mapManager, activeObjects, activeEnemies, dt);
 
             activeEnemies.forEach(enemy => {
-                enemy.update(this.mapManager, activeObjects, this.player);
+                enemy.update(this.mapManager, activeObjects, this.player, dt);
             });
         } catch (e) {
             console.error("Error en el ciclo de actualización (update):", e);
@@ -59,9 +62,17 @@ class GameEngine {
         try {
             this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
 
+            // Si el móvil está en vertical, mostrar advertencia de giro y pausar renderizado de juego
+            if (this.screenManager.drawOrientationWarning(this.ctx, this.canvas.width, this.canvas.height)) {
+                return;
+            }
+
+            // Aplicar sacudida de cámara (Screen Shake) si está activa
+            const shake = this.combatSystem.getScreenShakeOffset();
+
             const playerScreen = Iso.toScreen(this.player.x, this.player.y);
-            let cameraOffsetX = (this.canvas.width / 2) - playerScreen.x;
-            let cameraOffsetY = (this.canvas.height / 2) - playerScreen.y;
+            let cameraOffsetX = (this.canvas.width / 2) - playerScreen.x + shake.x;
+            let cameraOffsetY = (this.canvas.height / 2) - playerScreen.y + shake.y;
 
             this.mapManager.draw(this.ctx, cameraOffsetX, cameraOffsetY, timestamp);
 
@@ -84,8 +95,6 @@ class GameEngine {
 
             this.particleSystem.draw(this.ctx, cameraOffsetX, cameraOffsetY, Iso);
             this.combatSystem.drawFloatingTexts(this.ctx, cameraOffsetX, cameraOffsetY, Iso);
-
-            // Renderizar partículas de confeti en capa UI superior
             this.particleSystem.drawConfettiUI(this.ctx);
 
             this.inputManager.draw(this.ctx);
@@ -95,7 +104,9 @@ class GameEngine {
     }
 
     loop(timestamp) {
-        const dt = (timestamp - this.lastTime) / 1000;
+        // Delta time normalizado respecto a 60 FPS (aprox 16.6ms)
+        const rawDt = (timestamp - this.lastTime) / 1000;
+        const dt = Math.min(rawDt * 60, 2.0); 
         this.lastTime = timestamp;
 
         this.update(dt);
