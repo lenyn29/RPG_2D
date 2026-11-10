@@ -5,27 +5,30 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>RPG Isométrico PWA - Shangri-La Prototype</title>
     <style>
-        * {
-            box-sizing: border-box;
-            margin: 0;
-            padding: 0;
-            user-select: none;
-            -webkit-user-select: none;
-        }
-        html, body {
-            margin: 0;
-            padding: 0;
-            width: 100vw;
-            height: 100vh;
-            overflow: hidden;
-            background-color: #0f172a;
-        }
-        canvas {
-            display: block;
-            width: 100vw;
-            height: 100vh;
-        }
-    </style>
+    * {
+        box-sizing: border-box;
+        margin: 0;
+        padding: 0;
+        user-select: none;
+        -webkit-user-select: none;
+        touch-action: none; /* Evita gestos de zoom y scroll nativos en táctil */
+    }
+    html, body {
+        width: 100vw;
+        height: 100vh;
+        overflow: hidden;
+        background-color: #0b0f19;
+        position: fixed;
+        top: 0;
+        left: 0;
+    }
+    #gameCanvas {
+        display: block;
+        width: 100vw;
+        height: 100vh;
+        background-color: #111827;
+    }
+</style>
 </head>
 <body>
     <canvas id="gameCanvas"></canvas>
