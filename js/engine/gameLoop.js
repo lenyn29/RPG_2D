@@ -6,7 +6,7 @@ import { InputManager } from './inputManager.js';
 import { MapManager } from './mapManager.js';
 import { ScreenManager } from './screenManager.js';
 
-class GameEngine {
+export class GameEngine {
     constructor() {
         this.canvas = document.getElementById('gameCanvas');
         if (!this.canvas) {
@@ -148,7 +148,3 @@ class GameEngine {
         requestAnimationFrame(this.loop);
     }
 }
-
-window.onload = () => {
-    new GameEngine();
-};
