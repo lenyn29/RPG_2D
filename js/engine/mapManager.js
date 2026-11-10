@@ -10,7 +10,7 @@ export class MapManager {
         this.chunks = new Map(); 
         this.renderDistance = 2; 
 
-        // Instancia central del Santuario Mágico en (8.0, 8.0)
+        // Instancia central del Santuario Hexagonal Ancestral en (8.0, 8.0)
         this.sanctuary = new Sanctuary(8.0, 8.0);
     }
 
@@ -67,10 +67,10 @@ export class MapManager {
                 const slimeX = centerX + offsetX;
                 const slimeY = centerY + offsetY;
                 
-                // Evitar que los slimes aparezcan dentro de la zona del santuario
+                // Evitar que los slimes aparezcan dentro de la zona del santuario hexagonal
                 if (this.sanctuary) {
                     const distToSanctuary = Math.sqrt(Math.pow(slimeX - this.sanctuary.x, 2) + Math.pow(slimeY - this.sanctuary.y, 2));
-                    if (distToSanctuary > 4.0) {
+                    if (distToSanctuary > 4.5) {
                         const slimeLevel = Math.floor(1 + Math.random() * 3);
                         enemies.push(new Enemy(slimeX, slimeY, 'slime', slimeLevel));
                     }
@@ -170,6 +170,7 @@ export class MapManager {
             }
         }
 
+        // Dibujar el Santuario Hexagonal Ancestral sobre el terreno
         if (this.sanctuary) {
             this.sanctuary.draw(ctx, cameraOffsetX, cameraOffsetY, timestamp);
         }
