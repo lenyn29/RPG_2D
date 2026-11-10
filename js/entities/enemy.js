@@ -28,6 +28,7 @@ export class Enemy {
 
         this.respawnTimer = 0; 
         this.fadeTimer = 0; 
+        this.fleeTimer = 0; // Temporizador de retraso antes de regenerar al huir (3s)
 
         this.animTimer = 0;
         this.currentFrame = 0;
@@ -62,6 +63,7 @@ export class Enemy {
         this.state = 'hurt';
         this.currentFrame = 0;
         this.animTimer = 0;
+        this.fleeTimer = 0; // Reiniciar retraso de huida al recibir daño
         this.moveAngle = Math.atan2(this.y - sourceY, this.x - sourceX);
     }
 
@@ -91,14 +93,17 @@ export class Enemy {
             targetDist = Math.sqrt(pdx * pdx + pdy * pdy);
         }
 
-        // Comprobar si entra en modo huida (< 50% de vida)
         const halfHp = this.maxHp / 2;
         if (this.hp < halfHp) {
             this.state = 'flee';
-            // Regenerar 1 HP por segundo (+1/60 HP por frame) mientras huye, hasta recuperar el 50% de HP
-            if (this.hp < halfHp) {
-                this.hp = Math.min(halfHp, this.hp + (1 / 60));
+            // Tras 3 segundos (180 frames) de huida ininterrumpida, regenera 0.3 HP por segundo
+            if (this.fleeTimer < 180) {
+                this.fleeTimer++;
+            } else {
+                this.hp = Math.min(halfHp, this.hp + (0.3 / 60));
             }
+        } else {
+            this.fleeTimer = 0;
         }
 
         const playerIsHigherLevel = player && (player.level > this.level);
