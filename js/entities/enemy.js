@@ -8,7 +8,7 @@ export class Enemy {
         this.x = startX;
         this.y = startY;
         this.type = type;
-        this.level = level; // Nivel 1 a 3
+        this.level = level; 
         this.speed = 0.018; 
         this.radius = 0.35; 
         
@@ -91,8 +91,14 @@ export class Enemy {
             targetDist = Math.sqrt(pdx * pdx + pdy * pdy);
         }
 
-        if (this.hp < (this.maxHp / 2)) {
+        // Comprobar si entra en modo huida (< 50% de vida)
+        const halfHp = this.maxHp / 2;
+        if (this.hp < halfHp) {
             this.state = 'flee';
+            // Regenerar 1 HP por segundo (+1/60 HP por frame) mientras huye, hasta recuperar el 50% de HP
+            if (this.hp < halfHp) {
+                this.hp = Math.min(halfHp, this.hp + (1 / 60));
+            }
         }
 
         const playerIsHigherLevel = player && (player.level > this.level);
