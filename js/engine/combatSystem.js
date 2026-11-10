@@ -51,7 +51,7 @@ export class CombatSystem {
 
         if (enemiesInRange.length > 0) {
             player.hasDealtDamageThisAttack = true;
-            this.triggerScreenShake(12, 6); // Sacudida épica al golpear
+            this.triggerScreenShake(12, 6);
 
             enemiesInRange.sort((a, b) => a.dist - b.dist);
             const closest = enemiesInRange[0];
@@ -68,7 +68,7 @@ export class CombatSystem {
             affectedEnemies.forEach((item, index) => {
                 const targetEnemy = item.enemy;
                 
-                // Probabilidad de Golpe Crítico (15% de chance, multiplica x1.5 el daño)
+                // 15% Probabilidad de crítico (x1.5 daño)
                 const isCrit = Math.random() < 0.15;
                 let damageAmount = (index === 0) ? baseDamage : (baseDamage / 2);
                 if (isCrit) damageAmount *= 1.5;
@@ -79,7 +79,6 @@ export class CombatSystem {
                 targetEnemy.applyDamage(player.x, player.y);
                 this.particles.emitBlood(targetEnemy.x, targetEnemy.y, index === 0 ? 6 : 2);
                 
-                // Color dorado brillante para críticos, rojo para daño normal
                 const textColor = isCrit ? '#eab308' : '#ef4444';
                 const textDisplay = isCrit ? `💥-${finalDamage}` : `-${finalDamage}`;
                 this.addFloatingText(textDisplay, targetEnemy.x, targetEnemy.y - 0.5, textColor);
@@ -90,7 +89,7 @@ export class CombatSystem {
                     targetEnemy.currentFrame = 0;
                     targetEnemy.animTimer = 0;
                     targetEnemy.fadeTimer = 180; 
-                    targetEnemy.respawnTimer = targetEnemy.level * 6 * 60; // 6 segundos por nivel de respawn
+                    targetEnemy.respawnTimer = targetEnemy.level * 6 * 60; 
 
                     const xpReward = ProgressionSystem.getEnemyXpReward(targetEnemy.level);
                     player.gainXp(xpReward, this.particles, canvasWidth, canvasHeight);
@@ -101,7 +100,7 @@ export class CombatSystem {
     }
 
     processEnemyAttacks(player, enemies) {
-        if (player.state === 'dead') return;
+        if (!player || player.state === 'dead') return;
 
         enemies.forEach(enemy => {
             if (enemy.state === 'dead' || enemy.state === 'flee') return;
@@ -115,7 +114,7 @@ export class CombatSystem {
                     const enemyDamage = Math.round((enemy.attackPower || 1) * 10) / 10;
                     player.hp -= enemyDamage;
                     player.takeDamage(enemy.x, enemy.y);
-                    this.triggerScreenShake(16, 8); // Gran impacto al recibir daño del monstruo
+                    this.triggerScreenShake(16, 8);
                     this.particles.emitBlood(player.x, player.y, 7);
                     this.addFloatingText(`-${enemyDamage}`, player.x, player.y - 0.5, '#06b6d4'); 
 
@@ -164,6 +163,7 @@ export class CombatSystem {
     }
 
     drawFloatingTexts(ctx, cameraOffsetX, cameraOffsetY, Iso) {
+        if (!ctx) return;
         this.floatingTexts.forEach(ft => {
             const screen = Iso.toScreen(ft.x, ft.y);
             const renderX = screen.x + cameraOffsetX;
