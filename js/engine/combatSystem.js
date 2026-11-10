@@ -1,3 +1,5 @@
+import { ProgressionSystem } from './progressionSystem.js';
+
 export class CombatSystem {
     constructor(particleSystem) {
         this.particles = particleSystem;
@@ -15,7 +17,7 @@ export class CombatSystem {
         });
     }
 
-    processPlayerAttack(player, enemies) {
+    processPlayerAttack(player, enemies, canvasWidth, canvasHeight) {
         if (!player.isAttacking) return;
 
         const attackRange = 1.3;
@@ -43,7 +45,6 @@ export class CombatSystem {
                 player.facing = closest.dy > 0 ? 'down' : 'up';
             }
 
-            // Aplicar daño del héroe escalado por nivel (dividido si hay varios)
             const baseDamage = player.attackPower || 1;
             const damageAmount = enemiesInRange.length === 1 ? baseDamage : baseDamage / 2;
 
@@ -61,11 +62,11 @@ export class CombatSystem {
                     targetEnemy.currentFrame = 0;
                     targetEnemy.animTimer = 0;
                     targetEnemy.fadeTimer = 180; 
-                    targetEnemy.respawnTimer = targetEnemy.level * 5 * 60; // 5s por nivel
+                    targetEnemy.respawnTimer = targetEnemy.level * 5 * 60; 
 
-                    // Otorgar XP al jugador al derrotar al enemigo
-                    const xpReward = targetEnemy.level * 50;
-                    player.gainXp(xpReward);
+                    // Recompensa de XP basada en el nivel del slime (Lv 1 = 10xp, Lv 2 = 20xp, etc.)
+                    const xpReward = ProgressionSystem.getEnemyXpReward(targetEnemy.level);
+                    player.gainXp(xpReward, this.particles, canvasWidth, canvasHeight);
                     this.addFloatingText(`+${xpReward} XP`, player.x, player.y - 0.8, '#3b82f6');
                 }
             });
@@ -87,7 +88,7 @@ export class CombatSystem {
                     const enemyDamage = enemy.attackPower || 1;
                     player.hp -= enemyDamage;
                     player.takeDamage(enemy.x, enemy.y);
-                    this.particles.emitBlood(player.x, player.y, 6);
+                    this.particles.emitBlood(enemy.x, enemy.y, 6);
                     this.addFloatingText(`-${enemyDamage.toFixed(1)}`, player.x, player.y - 0.5, '#3b82f6'); 
 
                     if (player.hp <= 0) {
