@@ -15,6 +15,7 @@ class GameEngine {
         this.resizeCanvas();
         window.addEventListener('resize', () => this.resizeCanvas());
 
+        // Inicializar subsistemas del motor
         this.screenManager = new ScreenManager();
         this.mapManager = new MapManager(12345);
         this.particleSystem = new ParticleSystem();
@@ -36,26 +37,29 @@ class GameEngine {
     }
 
     update(dt) {
-        // Añadir en update(dt) dentro de gameLoop.js:
-        const sanctuary = this.mapManager.sanctuary;
-              if (sanctuary) {
-                  activeEnemies.forEach(enemy => {
-              if (enemy.state !== 'dead' && sanctuary.isMobInSafeArea(enemy.x, enemy.y, enemy.level)) {
-                  sanctuary.repelMob(enemy);
-                  }
-              });
-        }
         try {
             this.mapManager.update(this.player.x, this.player.y);
             const activeObjects = this.mapManager.getActiveObjects() || [];
             const activeEnemies = this.mapManager.getActiveEnemies() || [];
             
+            // 1. Repeler mobs si invaden la zona segura del Santuario Mágico
+            const sanctuary = this.mapManager.sanctuary;
+            if (sanctuary) {
+                activeEnemies.forEach(enemy => {
+                    if (enemy.state !== 'dead' && sanctuary.isMobInSafeArea(enemy.x, enemy.y, enemy.level)) {
+                        sanctuary.repelMob(enemy);
+                    }
+                });
+            }
+
+            // 2. Procesar combate, XP, respawns y efectos
             this.combatSystem.processPlayerAttack(this.player, activeEnemies, this.canvas.width, this.canvas.height);
             this.combatSystem.processEnemyAttacks(this.player, activeEnemies);
             this.combatSystem.updateRespawns(activeEnemies);
             this.particleSystem.update();
             this.combatSystem.updateFloatingTexts();
 
+            // 3. Actualizar entidades con Delta Time
             this.player.update(this.inputManager, this.mapManager, activeObjects, activeEnemies, dt);
 
             activeEnemies.forEach(enemy => {
@@ -70,18 +74,22 @@ class GameEngine {
         try {
             this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
 
+            // Si el móvil está en vertical, mostrar advertencia de giro
             if (this.screenManager.drawOrientationWarning(this.ctx, this.canvas.width, this.canvas.height)) {
                 return;
             }
 
+            // Obtener desplazamiento de Screen Shake
             const shake = this.combatSystem.getScreenShakeOffset();
 
             const playerScreen = Iso.toScreen(this.player.x, this.player.y);
             let cameraOffsetX = (this.canvas.width / 2) - playerScreen.x + shake.x;
             let cameraOffsetY = (this.canvas.height / 2) - playerScreen.y + shake.y;
 
+            // 1. Dibujar mapa y Santuario Mágico
             this.mapManager.draw(this.ctx, cameraOffsetX, cameraOffsetY, timestamp);
 
+            // 2. Renderizar entidades ordenadas por profundidad (Y-Sorting)
             const activeObjects = this.mapManager.getActiveObjects() || [];
             const activeEnemies = this.mapManager.getActiveEnemies() || [];
             
@@ -99,6 +107,7 @@ class GameEngine {
                 }
             });
 
+            // 3. Efectos visuales e interfaz de usuario (UI)
             this.particleSystem.draw(this.ctx, cameraOffsetX, cameraOffsetY, Iso);
             this.combatSystem.drawFloatingTexts(this.ctx, cameraOffsetX, cameraOffsetY, Iso);
             this.particleSystem.drawConfettiUI(this.ctx);
