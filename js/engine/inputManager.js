@@ -1,167 +1,260 @@
 export class InputManager {
-    constructor(canvas, player = null) {
+    constructor(canvas, player) {
         this.canvas = canvas;
         this.player = player;
-        this.touchActive = false;
-        this.touchId = null;
-        this.baseX = 0;
-        this.baseY = 0;
-        this.currX = 0;
-        this.currY = 0;
+
+        // Estado del joystick virtual
+        this.joystickActive = false;
+        this.joystickId = null;
+        this.joystickCenter = { x: 0, y: 0 };
+        this.joystickCurrent = { x: 0, y: 0 };
         this.maxRadius = 50;
 
         // Estado del botón de ataque
         this.attackPressed = false;
-        this.attackButton = {
-            x: window.innerWidth - 80,
-            y: window.innerHeight - 100,
-            radius: 35
-        };
+        this.attackTriggeredThisFrame = false;
         this.attackTouchId = null;
 
         this.setupListeners();
     }
 
-    setPlayer(player) {
-        this.player = player;
-    }
-
     setupListeners() {
-        window.addEventListener('resize', () => {
-            this.attackButton.x = window.innerWidth - 80;
-            this.attackButton.y = window.innerHeight - 100;
+        this.canvas.addEventListener('touchstart', (e) => this.handleTouchStart(e), { passive: false });
+        this.canvas.addEventListener('touchmove', (e) => this.handleTouchMove(e), { passive: false });
+        this.canvas.addEventListener('touchend', (e) => this.handleTouchEnd(e), { passive: false });
+        this.canvas.addEventListener('touchcancel', (e) => this.handleTouchEnd(e), { passive: false });
+
+        // Soporte básico para pruebas en escritorio con Mouse / Teclado
+        this.canvas.addEventListener('mousedown', (e) => this.handleMouseDown(e));
+        this.canvas.addEventListener('mousemove', (e) => this.handleMouseMove(e));
+        this.canvas.addEventListener('mouseup', (e) => this.handleMouseUp(e));
+        
+        window.addEventListener('keydown', (e) => {
+            if (e.code === 'Space') {
+                this.attackPressed = true;
+                this.attackTriggeredThisFrame = true;
+            }
         });
-
-        window.addEventListener('touchstart', (e) => {
-            for (let i = 0; i < e.changedTouches.length; i++) {
-                const touch = e.changedTouches[i];
-
-                // 1. Verificar si pulsa el botón de reinicio al morir el héroe
-                if (this.player && this.player.showRestartButton) {
-                    const bx = window.innerWidth / 2;
-                    const by = window.innerHeight / 2 + 50;
-                    if (touch.clientX >= bx - 90 && touch.clientX <= bx + 90 &&
-                        touch.clientY >= by - 25 && touch.clientY <= by + 25) {
-                        window.location.reload();
-                        return;
-                    }
-                }
-
-                // 2. Verificar si toca el botón de ataque (Mitad derecha / Zona inferior derecha)
-                const adx = touch.clientX - this.attackButton.x;
-                const ady = touch.clientY - this.attackButton.y;
-                if (Math.sqrt(adx * adx + ady * ady) <= this.attackButton.radius + 15) {
-                    this.attackTouchId = touch.identifier;
-                    this.attackPressed = true;
-                    continue;
-                }
-
-                // 3. Joystick en la mitad izquierda de la pantalla
-                if (!this.touchActive && touch.clientX < window.innerWidth / 2) {
-                    this.touchId = touch.identifier;
-                    this.baseX = touch.clientX;
-                    this.baseY = touch.clientY;
-                    this.currX = touch.clientX;
-                    this.currY = touch.clientY;
-                    this.touchActive = true;
-                }
+        window.addEventListener('keyup', (e) => {
+            if (e.code === 'Space') {
+                this.attackPressed = false;
             }
-        }, { passive: false });
-
-        window.addEventListener('touchmove', (e) => {
-            for (let i = 0; i < e.changedTouches.length; i++) {
-                const touch = e.changedTouches[i];
-                if (touch.identifier === this.touchId) {
-                    this.currX = touch.clientX;
-                    this.currY = touch.clientY;
-                }
-            }
-            e.preventDefault();
-        }, { passive: false });
-
-        const endHandler = (e) => {
-            for (let i = 0; i < e.changedTouches.length; i++) {
-                const touch = e.changedTouches[i];
-                if (touch.identifier === this.touchId) {
-                    this.touchActive = false;
-                    this.touchId = null;
-                    this.currX = this.baseX;
-                    this.currY = this.baseY;
-                }
-                if (touch.identifier === this.attackTouchId) {
-                    this.attackTouchId = null;
-                    this.attackPressed = false;
-                }
-            }
-        };
-
-        window.addEventListener('touchend', endHandler);
-        window.addEventListener('touchcancel', endHandler);
+        });
     }
 
-    isAttackTriggered() {
-        if (this.attackPressed) {
-            this.attackPressed = false; // Consumir evento de ataque
-            return true;
+    handleTouchStart(e) {
+        e.preventDefault();
+        const rect = this.canvas.getBoundingClientRect();
+
+        for (let i = 0; i < e.changedTouches.length; i++) {
+            const touch = e.changedTouches[i];
+            const x = touch.clientX - rect.left;
+            const y = touch.clientY - rect.top;
+
+            // Si el héroe está muerto y muestra el botón de reaparición, comprobar clic en el botón
+            if (this.player.showRestartButton) {
+                const btnX = this.canvas.width / 2;
+                const btnY = this.canvas.height / 2 + 50;
+                if (Math.abs(x - btnX) < 110 && Math.abs(y - btnY) < 30) {
+                    this.player.respawnAtSanctuary();
+                    return;
+                }
+            }
+
+            // Mitad derecha de la pantalla: Botón de Ataque
+            if (x > this.canvas.width / 2 && this.attackTouchId === null) {
+                this.attackTouchId = touch.identifier;
+                this.attackPressed = true;
+                this.attackTriggeredThisFrame = true;
+            } 
+            // Mitad izquierda de la pantalla: Joystick
+            else if (x <= this.canvas.width / 2 && !this.joystickActive) {
+                this.joystickActive = true;
+                this.joystickId = touch.identifier;
+                this.joystickCenter = { x, y };
+                this.joystickCurrent = { x, y };
+            }
         }
-        return false;
+    }
+
+    handleTouchMove(e) {
+        e.preventDefault();
+        const rect = this.canvas.getBoundingClientRect();
+
+        for (let i = 0; i < e.changedTouches.length; i++) {
+            const touch = e.changedTouches[i];
+            if (touch.identifier === this.joystickId) {
+                const x = touch.clientX - rect.left;
+                const y = touch.clientY - rect.top;
+
+                const dx = x - this.joystickCenter.x;
+                const dy = y - this.joystickCenter.y;
+                const dist = Math.sqrt(dx * dx + dy * dy);
+
+                if (dist > this.maxRadius) {
+                    this.joystickCurrent.x = this.joystickCenter.x + (dx / dist) * this.maxRadius;
+                    this.joystickCurrent.y = this.joystickCenter.y + (dy / dist) * this.maxRadius;
+                } else {
+                    this.joystickCurrent.x = x;
+                    this.joystickCurrent.y = y;
+                }
+            }
+        }
+    }
+
+    handleTouchEnd(e) {
+        e.preventDefault();
+        for (let i = 0; i < e.changedTouches.length; i++) {
+            const touch = e.changedTouches[i];
+            if (touch.identifier === this.joystickId) {
+                this.joystickActive = false;
+                this.joystickId = null;
+                this.joystickCurrent = { ...this.joystickCenter };
+            }
+            if (touch.identifier === this.attackTouchId) {
+                this.attackTouchId = null;
+                this.attackPressed = false;
+            }
+        }
+    }
+
+    handleMouseDown(e) {
+        const rect = this.canvas.getBoundingClientRect();
+        const x = e.clientX - rect.left;
+        const y = e.clientY - rect.top;
+
+        if (this.player.showRestartButton) {
+            const btnX = this.canvas.width / 2;
+            const btnY = this.canvas.height / 2 + 50;
+            if (Math.abs(x - btnX) < 110 && Math.abs(y - btnY) < 30) {
+                this.player.respawnAtSanctuary();
+                return;
+            }
+        }
+
+        if (x > this.canvas.width / 2) {
+            this.attackPressed = true;
+            this.attackTriggeredThisFrame = true;
+        } else {
+            this.joystickActive = true;
+            this.joystickCenter = { x, y };
+            this.joystickCurrent = { x, y };
+        }
+    }
+
+    handleMouseMove(e) {
+        if (!this.joystickActive) return;
+        const rect = this.canvas.getBoundingClientRect();
+        const x = e.clientX - rect.left;
+        const y = e.clientY - rect.top;
+
+        const dx = x - this.joystickCenter.x;
+        const dy = y - this.joystickCenter.y;
+        const dist = Math.sqrt(dx * dx + dy * dy);
+
+        if (dist > this.maxRadius) {
+            this.joystickCurrent.x = this.joystickCenter.x + (dx / dist) * this.maxRadius;
+            this.joystickCurrent.y = this.joystickCenter.y + (dy / dist) * this.maxRadius;
+        } else {
+            this.joystickCurrent.x = x;
+            this.joystickCurrent.y = y;
+        }
+    }
+
+    handleMouseUp(e) {
+        this.joystickActive = false;
+        this.joystickCurrent = { ...this.joystickCenter };
+        this.attackPressed = false;
     }
 
     getMovementVector() {
-        if (!this.touchActive) return { x: 0, y: 0 };
+        if (!this.joystickActive) return { x: 0, y: 0 };
+        const dx = this.joystickCurrent.x - this.joystickCenter.x;
+        const dy = this.joystickCurrent.y - this.joystickCenter.y;
+        const dist = Math.sqrt(dx * dx + dy * dy);
+        if (dist === 0) return { x: 0, y: 0 };
 
-        let dx = this.currX - this.baseX;
-        let dy = this.currY - this.baseY; 
-        const distance = Math.sqrt(dx * dx + dy * dy);
-
-        if (distance === 0) return { x: 0, y: 0 };
-
-        const force = Math.min(distance, this.maxRadius) / this.maxRadius;
         return {
-            x: (dx / distance) * force,
-            y: (dy / distance) * force
+            x: dx / this.maxRadius,
+            y: dy / this.maxRadius
         };
     }
 
+    isAttackTriggered() {
+        const triggered = this.attackTriggeredThisFrame;
+        this.attackTriggeredThisFrame = false; // Consumir evento del frame
+        return triggered;
+    }
+
     draw(ctx) {
-        // 1. Dibujar Joystick Izquierdo
-        if (this.touchActive) {
+        // 1. Dibujar Joystick si está activo
+        if (this.joystickActive) {
+            ctx.save();
             ctx.beginPath();
-            ctx.arc(this.baseX, this.baseY, this.maxRadius, 0, Math.PI * 2);
+            ctx.arc(this.joystickCenter.x, this.joystickCenter.y, this.maxRadius, 0, Math.PI * 2);
             ctx.fillStyle = 'rgba(255, 255, 255, 0.15)';
             ctx.fill();
-            ctx.strokeStyle = 'rgba(255, 255, 255, 0.3)';
+            ctx.strokeStyle = 'rgba(255, 255, 255, 0.4)';
             ctx.lineWidth = 2;
             ctx.stroke();
 
             ctx.beginPath();
-            ctx.arc(this.currX, this.currY, 22, 0, Math.PI * 2);
-            ctx.fillStyle = 'rgba(0, 240, 255, 0.5)';
+            ctx.arc(this.joystickCurrent.x, this.joystickCurrent.y, 22, 0, Math.PI * 2);
+            ctx.fillStyle = 'rgba(255, 255, 255, 0.35)';
             ctx.fill();
-            ctx.strokeStyle = '#00F0FF';
-            ctx.lineWidth = 2;
-            ctx.stroke();
+            ctx.restore();
         }
 
-        // 2. Dibujar Botón de Ataque Derecho (UI fija)
+        // 2. Dibujar Botón de Ataque táctil en esquina inferior derecha
+        ctx.save();
+        const btnX = ctx.canvas.width - 70;
+        const btnY = ctx.canvas.height - 70;
         ctx.beginPath();
-        ctx.arc(this.attackButton.x, this.attackButton.y, this.attackButton.radius, 0, Math.PI * 2);
-        ctx.fillStyle = this.attackTouchId !== null ? 'rgba(239, 68, 68, 0.7)' : 'rgba(239, 68, 68, 0.35)';
+        ctx.arc(btnX, btnY, 35, 0, Math.PI * 2);
+        ctx.fillStyle = this.attackPressed ? 'rgba(239, 68, 68, 0.6)' : 'rgba(0, 0, 0, 0.35)';
         ctx.fill();
-        ctx.strokeStyle = '#EF4444'; 
+        ctx.strokeStyle = 'rgba(255, 255, 255, 0.5)';
         ctx.lineWidth = 3;
         ctx.stroke();
 
         ctx.fillStyle = '#FFFFFF';
-        ctx.font = 'bold 14px sans-serif';
+        ctx.font = 'bold 12px sans-serif';
         ctx.textAlign = 'center';
         ctx.textBaseline = 'middle';
-        ctx.fillText('⚔️', this.attackButton.x, this.attackButton.y);
+        ctx.fillText('ATAQUE', btnX, btnY);
+        ctx.restore();
 
-        // Dentro del método de manejo de clics del botón de reinicio en inputManager.js:
-        // Reemplazar la recarga de página por:
-        if (this.player.showRestartButton) {
-            this.player.respawnAtSanctuary();
+        // 3. Pantalla de Muerte y Botón de Reaparición en el Santuario
+        if (this.player.state === 'dead') {
+            ctx.save();
+            ctx.fillStyle = 'rgba(0, 0, 0, 0.75)';
+            ctx.fillRect(0, 0, ctx.canvas.width, ctx.canvas.height);
+
+            ctx.fillStyle = '#ef4444';
+            ctx.font = 'bold 26px sans-serif';
+            ctx.textAlign = 'center';
+            ctx.fillText('¡HAS CAÍDO EN COMBATE!', ctx.canvas.width / 2, ctx.canvas.height / 2 - 30);
+
+            if (this.player.showRestartButton) {
+                const rx = ctx.canvas.width / 2;
+                const ry = ctx.canvas.height / 2 + 50;
+                
+                ctx.fillStyle = '#22c55e';
+                ctx.fillRect(rx - 110, ry - 30, 220, 60);
+                ctx.strokeStyle = '#FFFFFF';
+                ctx.lineWidth = 2;
+                ctx.strokeRect(rx - 110, ry - 30, 220, 60);
+
+                ctx.fillStyle = '#FFFFFF';
+                ctx.font = 'bold 16px sans-serif';
+                ctx.textBaseline = 'middle';
+                ctx.fillText('✨ REAPARECER', rx, ry);
+            } else {
+                ctx.fillStyle = '#94a3b8';
+                ctx.font = '14px sans-serif';
+                ctx.fillText('Regresando al Santuario Mágico...', ctx.canvas.width / 2, ctx.canvas.height / 2 + 20);
+            }
+            ctx.restore();
         }
     }
 }
