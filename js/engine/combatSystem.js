@@ -32,40 +32,29 @@ export class CombatSystem {
         });
     }
 
-    processPlayerAttack(player, enemies, objects, canvasWidth, canvasHeight) {
+    processPlayerAttack(player, enemies, canvasWidth, canvasHeight) {
         if (!player.isAttacking || player.hasDealtDamageThisAttack) return;
 
         const attackRange = 1.3;
-        let targetsInRange = [];
+        let enemiesInRange = [];
 
-        // 1. Comprobar enemigos en rango
         enemies.forEach(enemy => {
             if (enemy.state === 'dead' || enemy.isHurt) return;
             const dx = enemy.x - player.x;
             const dy = enemy.y - player.y;
             const dist = Math.sqrt(dx * dx + dy * dy);
+
             if (dist <= attackRange) {
-                targetsInRange.push({ type: 'enemy', target: enemy, dist, dx, dy });
+                enemiesInRange.push({ enemy, dist, dx, dy });
             }
         });
 
-        // 2. Comprobar recursos destructibles (rocas / árboles) en rango
-        objects.forEach(obj => {
-            if (obj.state === 'destroyed') return;
-            const dx = obj.x - player.x;
-            const dy = obj.y - player.y;
-            const dist = Math.sqrt(dx * dx + dy * dy);
-            if (dist <= attackRange) {
-                targetsInRange.push({ type: 'object', target: obj, dist, dx, dy });
-            }
-        });
-
-        if (targetsInRange.length > 0) {
+        if (enemiesInRange.length > 0) {
             player.hasDealtDamageThisAttack = true;
-            this.triggerScreenShake(10, 5); // Activar sacudida de cámara
+            this.triggerScreenShake(10, 5); // Sacudida de cámara al golpear
 
-            targetsInRange.sort((a, b) => a.dist - b.dist);
-            const closest = targetsInRange[0];
+            enemiesInRange.sort((a, b) => a.dist - b.dist);
+            const closest = enemiesInRange[0];
 
             if (Math.abs(closest.dx) > Math.abs(closest.dy)) {
                 player.facing = closest.dx > 0 ? 'right' : 'left';
@@ -74,35 +63,30 @@ export class CombatSystem {
             }
 
             const baseDamage = player.attackPower || 1;
-            const affected = targetsInRange.slice(0, 3);
+            const affectedEnemies = enemiesInRange.slice(0, 3); // Máximo 3 enemigos afectados
 
-            affected.forEach((item, index) => {
+            affectedEnemies.forEach((item, index) => {
+                const targetEnemy = item.enemy;
                 const damageAmount = (index === 0) ? baseDamage : (baseDamage / 2);
                 const roundedDamage = Math.round(damageAmount * 10) / 10;
 
-                if (item.type === 'enemy') {
-                    const enemy = item.target;
-                    enemy.hp -= roundedDamage;
-                    enemy.applyDamage(player.x, player.y);
-                    this.particles.emitBlood(enemy.x, enemy.y, index === 0 ? 5 : 2);
-                    this.addFloatingText(`-${roundedDamage}`, enemy.x, enemy.y - 0.5, '#ef4444');
+                targetEnemy.hp -= roundedDamage;
+                targetEnemy.applyDamage(player.x, player.y);
+                this.particles.emitBlood(targetEnemy.x, targetEnemy.y, index === 0 ? 5 : 2);
+                
+                this.addFloatingText(`-${roundedDamage}`, targetEnemy.x, targetEnemy.y - 0.5, '#ef4444');
 
-                    if (enemy.hp <= 0) {
-                        enemy.hp = 0;
-                        enemy.state = 'dead';
-                        enemy.currentFrame = 0;
-                        enemy.animTimer = 0;
-                        enemy.fadeTimer = 180; 
-                        enemy.respawnTimer = enemy.level * 5 * 60; 
+                if (targetEnemy.hp <= 0) {
+                    targetEnemy.hp = 0;
+                    targetEnemy.state = 'dead';
+                    targetEnemy.currentFrame = 0;
+                    targetEnemy.animTimer = 0;
+                    targetEnemy.fadeTimer = 180; 
+                    targetEnemy.respawnTimer = targetEnemy.level * 5 * 60; 
 
-                        const xpReward = ProgressionSystem.getEnemyXpReward(enemy.level);
-                        player.gainXp(xpReward, this.particles, canvasWidth, canvasHeight);
-                        this.addFloatingText(`+${xpReward} XP`, player.x, player.y - 0.8, '#3b82f6');
-                    }
-                } else if (item.type === 'object') {
-                    const obj = item.target;
-                    obj.applyDamage(roundedDamage);
-                    this.addFloatingText(`-${roundedDamage}`, obj.x, obj.y - 0.5, '#eab308');
+                    const xpReward = ProgressionSystem.getEnemyXpReward(targetEnemy.level);
+                    player.gainXp(xpReward, this.particles, canvasWidth, canvasHeight);
+                    this.addFloatingText(`+${xpReward} XP`, player.x, player.y - 0.8, '#3b82f6');
                 }
             });
         }
@@ -123,7 +107,7 @@ export class CombatSystem {
                     const enemyDamage = Math.round((enemy.attackPower || 1) * 10) / 10;
                     player.hp -= enemyDamage;
                     player.takeDamage(enemy.x, enemy.y);
-                    this.triggerScreenShake(14, 7); // Sacudida fuerte al recibir daño
+                    this.triggerScreenShake(14, 7);
                     this.particles.emitBlood(player.x, player.y, 6);
                     this.addFloatingText(`-${enemyDamage}`, player.x, player.y - 0.5, '#3b82f6'); 
 
