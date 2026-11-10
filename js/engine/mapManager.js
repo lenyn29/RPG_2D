@@ -1,7 +1,7 @@
 import { Iso } from './isometric.js';
 import { GameObject } from '../entities/gameObject.js';
 import { Enemy } from '../entities/enemy.js';
-import { Sanctuary } from '../entities/sanctuary.js'; // Ruta corregida o verificada
+import { Sanctuary } from '../entities/sanctuary.js';
 
 export class MapManager {
     constructor(seed = 1337) {
@@ -10,7 +10,7 @@ export class MapManager {
         this.chunks = new Map(); 
         this.renderDistance = 2; 
 
-        // Instancia segura del Santuario en el punto (8.0, 8.0)
+        // Instancia central del Santuario Mágico en (8.0, 8.0)
         this.sanctuary = new Sanctuary(8.0, 8.0);
     }
 
@@ -67,7 +67,7 @@ export class MapManager {
                 const slimeX = centerX + offsetX;
                 const slimeY = centerY + offsetY;
                 
-                // Evitar que spawneen dentro del santuario
+                // Evitar que los slimes aparezcan dentro de la zona del santuario
                 if (this.sanctuary) {
                     const distToSanctuary = Math.sqrt(Math.pow(slimeX - this.sanctuary.x, 2) + Math.pow(slimeY - this.sanctuary.y, 2));
                     if (distToSanctuary > 4.0) {
