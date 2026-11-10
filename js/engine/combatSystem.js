@@ -4,6 +4,21 @@ export class CombatSystem {
     constructor(particleSystem) {
         this.particles = particleSystem;
         this.floatingTexts = []; 
+        this.screenShakeTimer = 0;
+        this.screenShakeIntensity = 0;
+    }
+
+    triggerScreenShake(durationFrames = 12, intensity = 6) {
+        this.screenShakeTimer = durationFrames;
+        this.screenShakeIntensity = intensity;
+    }
+
+    getScreenShakeOffset() {
+        if (this.screenShakeTimer <= 0) return { x: 0, y: 0 };
+        this.screenShakeTimer--;
+        const offsetX = (Math.random() - 0.5) * this.screenShakeIntensity;
+        const offsetY = (Math.random() - 0.5) * this.screenShakeIntensity;
+        return { x: offsetX, y: offsetY };
     }
 
     addFloatingText(text, x, y, color = '#ef4444') {
@@ -17,66 +32,77 @@ export class CombatSystem {
         });
     }
 
-    processPlayerAttack(player, enemies, canvasWidth, canvasHeight) {
-        // Si no está atacando o ya aplicó el daño en este ataque, no hace nada
+    processPlayerAttack(player, enemies, objects, canvasWidth, canvasHeight) {
         if (!player.isAttacking || player.hasDealtDamageThisAttack) return;
 
         const attackRange = 1.3;
-        let enemiesInRange = [];
+        let targetsInRange = [];
 
+        // 1. Comprobar enemigos en rango
         enemies.forEach(enemy => {
             if (enemy.state === 'dead' || enemy.isHurt) return;
-
             const dx = enemy.x - player.x;
             const dy = enemy.y - player.y;
             const dist = Math.sqrt(dx * dx + dy * dy);
-
             if (dist <= attackRange) {
-                enemiesInRange.push({ enemy, dist, dx, dy });
+                targetsInRange.push({ type: 'enemy', target: enemy, dist, dx, dy });
             }
         });
 
-        if (enemiesInRange.length > 0) {
-            // Marcar que este ataque ya infligió daño para evitar daño por frame múltiple
+        // 2. Comprobar recursos destructibles (rocas / árboles) en rango
+        objects.forEach(obj => {
+            if (obj.state === 'destroyed') return;
+            const dx = obj.x - player.x;
+            const dy = obj.y - player.y;
+            const dist = Math.sqrt(dx * dx + dy * dy);
+            if (dist <= attackRange) {
+                targetsInRange.push({ type: 'object', target: obj, dist, dx, dy });
+            }
+        });
+
+        if (targetsInRange.length > 0) {
             player.hasDealtDamageThisAttack = true;
+            this.triggerScreenShake(10, 5); // Activar sacudida de cámara
 
-            // Ordenar por cercanía
-            enemiesInRange.sort((a, b) => a.dist - b.dist);
-            const closest = enemiesInRange[0];
+            targetsInRange.sort((a, b) => a.dist - b.dist);
+            const closest = targetsInRange[0];
 
-            // Girar al héroe hacia el objetivo principal
             if (Math.abs(closest.dx) > Math.abs(closest.dy)) {
                 player.facing = closest.dx > 0 ? 'right' : 'left';
             } else {
                 player.facing = closest.dy > 0 ? 'down' : 'up';
             }
 
-            // Limitar área de daño a máximo 3 enemigos
-            const affectedEnemies = enemiesInRange.slice(0, 3);
             const baseDamage = player.attackPower || 1;
+            const affected = targetsInRange.slice(0, 3);
 
-            affectedEnemies.forEach((item, index) => {
-                const targetEnemy = item.enemy;
-                // El más cercano (índice 0) recibe daño completo; los demás (máximo 2 más) reciben la mitad
+            affected.forEach((item, index) => {
                 const damageAmount = (index === 0) ? baseDamage : (baseDamage / 2);
+                const roundedDamage = Math.round(damageAmount * 10) / 10;
 
-                targetEnemy.hp -= damageAmount;
-                targetEnemy.applyDamage(player.x, player.y);
-                this.particles.emitBlood(targetEnemy.x, targetEnemy.y, index === 0 ? 5 : 2);
-                
-                this.addFloatingText(`-${damageAmount.toFixed(1)}`, targetEnemy.x, targetEnemy.y - 0.5, '#ef4444');
+                if (item.type === 'enemy') {
+                    const enemy = item.target;
+                    enemy.hp -= roundedDamage;
+                    enemy.applyDamage(player.x, player.y);
+                    this.particles.emitBlood(enemy.x, enemy.y, index === 0 ? 5 : 2);
+                    this.addFloatingText(`-${roundedDamage}`, enemy.x, enemy.y - 0.5, '#ef4444');
 
-                if (targetEnemy.hp <= 0) {
-                    targetEnemy.hp = 0;
-                    targetEnemy.state = 'dead';
-                    targetEnemy.currentFrame = 0;
-                    targetEnemy.animTimer = 0;
-                    targetEnemy.fadeTimer = 180; 
-                    targetEnemy.respawnTimer = targetEnemy.level * 5 * 60; 
+                    if (enemy.hp <= 0) {
+                        enemy.hp = 0;
+                        enemy.state = 'dead';
+                        enemy.currentFrame = 0;
+                        enemy.animTimer = 0;
+                        enemy.fadeTimer = 180; 
+                        enemy.respawnTimer = enemy.level * 5 * 60; 
 
-                    const xpReward = ProgressionSystem.getEnemyXpReward(targetEnemy.level);
-                    player.gainXp(xpReward, this.particles, canvasWidth, canvasHeight);
-                    this.addFloatingText(`+${xpReward} XP`, player.x, player.y - 0.8, '#3b82f6');
+                        const xpReward = ProgressionSystem.getEnemyXpReward(enemy.level);
+                        player.gainXp(xpReward, this.particles, canvasWidth, canvasHeight);
+                        this.addFloatingText(`+${xpReward} XP`, player.x, player.y - 0.8, '#3b82f6');
+                    }
+                } else if (item.type === 'object') {
+                    const obj = item.target;
+                    obj.applyDamage(roundedDamage);
+                    this.addFloatingText(`-${roundedDamage}`, obj.x, obj.y - 0.5, '#eab308');
                 }
             });
         }
@@ -94,11 +120,12 @@ export class CombatSystem {
 
             if (enemy.state === 'attack' && dist <= 0.8) {
                 if (!player.isHurt && player.invincibleFrames <= 0) {
-                    const enemyDamage = enemy.attackPower || 1;
+                    const enemyDamage = Math.round((enemy.attackPower || 1) * 10) / 10;
                     player.hp -= enemyDamage;
                     player.takeDamage(enemy.x, enemy.y);
+                    this.triggerScreenShake(14, 7); // Sacudida fuerte al recibir daño
                     this.particles.emitBlood(player.x, player.y, 6);
-                    this.addFloatingText(`-${enemyDamage.toFixed(1)}`, player.x, player.y - 0.5, '#3b82f6'); 
+                    this.addFloatingText(`-${enemyDamage}`, player.x, player.y - 0.5, '#3b82f6'); 
 
                     if (player.hp <= 0) {
                         player.hp = 0;
