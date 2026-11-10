@@ -3,14 +3,12 @@ export class InputManager {
         this.canvas = canvas;
         this.player = player;
 
-        // Estado del joystick virtual
         this.joystickActive = false;
         this.joystickId = null;
         this.joystickCenter = { x: 0, y: 0 };
         this.joystickCurrent = { x: 0, y: 0 };
         this.maxRadius = 50;
 
-        // Estado del botón de ataque
         this.attackPressed = false;
         this.attackTriggeredThisFrame = false;
         this.attackTouchId = null;
@@ -24,7 +22,6 @@ export class InputManager {
         this.canvas.addEventListener('touchend', (e) => this.handleTouchEnd(e), { passive: false });
         this.canvas.addEventListener('touchcancel', (e) => this.handleTouchEnd(e), { passive: false });
 
-        // Soporte básico para pruebas en escritorio con Mouse / Teclado
         this.canvas.addEventListener('mousedown', (e) => this.handleMouseDown(e));
         this.canvas.addEventListener('mousemove', (e) => this.handleMouseMove(e));
         this.canvas.addEventListener('mouseup', (e) => this.handleMouseUp(e));
@@ -51,24 +48,23 @@ export class InputManager {
             const x = touch.clientX - rect.left;
             const y = touch.clientY - rect.top;
 
-            // Si el héroe está muerto y muestra el botón de reaparición, comprobar clic en el botón
-            if (this.player.showRestartButton) {
+            // Si el héroe está muerto y muestra el botón de reaparición
+            if (this.player && this.player.state === 'dead' && this.player.showRestartButton) {
                 const btnX = this.canvas.width / 2;
                 const btnY = this.canvas.height / 2 + 50;
-                if (Math.abs(x - btnX) < 110 && Math.abs(y - btnY) < 30) {
-                    this.player.respawnAtSanctuary();
+                if (Math.abs(x - btnX) < 120 && Math.abs(y - btnY) < 35) {
+                    if (typeof this.player.respawnAtSanctuary === 'function') {
+                        this.player.respawnAtSanctuary();
+                    }
                     return;
                 }
             }
 
-            // Mitad derecha de la pantalla: Botón de Ataque
             if (x > this.canvas.width / 2 && this.attackTouchId === null) {
                 this.attackTouchId = touch.identifier;
                 this.attackPressed = true;
                 this.attackTriggeredThisFrame = true;
-            } 
-            // Mitad izquierda de la pantalla: Joystick
-            else if (x <= this.canvas.width / 2 && !this.joystickActive) {
+            } else if (x <= this.canvas.width / 2 && !this.joystickActive) {
                 this.joystickActive = true;
                 this.joystickId = touch.identifier;
                 this.joystickCenter = { x, y };
@@ -123,11 +119,13 @@ export class InputManager {
         const x = e.clientX - rect.left;
         const y = e.clientY - rect.top;
 
-        if (this.player.showRestartButton) {
+        if (this.player && this.player.state === 'dead' && this.player.showRestartButton) {
             const btnX = this.canvas.width / 2;
             const btnY = this.canvas.height / 2 + 50;
-            if (Math.abs(x - btnX) < 110 && Math.abs(y - btnY) < 30) {
-                this.player.respawnAtSanctuary();
+            if (Math.abs(x - btnX) < 120 && Math.abs(y - btnY) < 35) {
+                if (typeof this.player.respawnAtSanctuary === 'function') {
+                    this.player.respawnAtSanctuary();
+                }
                 return;
             }
         }
@@ -182,11 +180,13 @@ export class InputManager {
 
     isAttackTriggered() {
         const triggered = this.attackTriggeredThisFrame;
-        this.attackTriggeredThisFrame = false; // Consumir evento del frame
+        this.attackTriggeredThisFrame = false;
         return triggered;
     }
 
     draw(ctx) {
+        if (!ctx) return;
+
         // 1. Dibujar Joystick si está activo
         if (this.joystickActive) {
             ctx.save();
@@ -205,7 +205,7 @@ export class InputManager {
             ctx.restore();
         }
 
-        // 2. Dibujar Botón de Ataque táctil en esquina inferior derecha
+        // 2. Dibujar Botón de Ataque
         ctx.save();
         const btnX = ctx.canvas.width - 70;
         const btnY = ctx.canvas.height - 70;
@@ -224,30 +224,30 @@ export class InputManager {
         ctx.fillText('ATAQUE', btnX, btnY);
         ctx.restore();
 
-        // 3. Pantalla de Muerte y Botón de Reaparición en el Santuario
-        if (this.player.state === 'dead') {
+        // 3. Pantalla de Muerte y Reaparición en el Santuario
+        if (this.player && this.player.state === 'dead') {
             ctx.save();
-            ctx.fillStyle = 'rgba(0, 0, 0, 0.75)';
+            ctx.fillStyle = 'rgba(0, 0, 0, 0.8)';
             ctx.fillRect(0, 0, ctx.canvas.width, ctx.canvas.height);
 
             ctx.fillStyle = '#ef4444';
-            ctx.font = 'bold 26px sans-serif';
+            ctx.font = 'bold 24px sans-serif';
             ctx.textAlign = 'center';
-            ctx.fillText('¡HAS CAÍDO EN COMBATE!', ctx.canvas.width / 2, ctx.canvas.height / 2 - 30);
+            ctx.textBaseline = 'middle';
+            ctx.fillText('¡HAS CAÍDO EN COMBATE!', ctx.canvas.width / 2, ctx.canvas.height / 2 - 40);
 
             if (this.player.showRestartButton) {
                 const rx = ctx.canvas.width / 2;
-                const ry = ctx.canvas.height / 2 + 50;
+                const ry = ctx.canvas.height / 2 + 40;
                 
                 ctx.fillStyle = '#22c55e';
-                ctx.fillRect(rx - 110, ry - 30, 220, 60);
+                ctx.fillRect(rx - 120, ry - 30, 240, 60);
                 ctx.strokeStyle = '#FFFFFF';
                 ctx.lineWidth = 2;
-                ctx.strokeRect(rx - 110, ry - 30, 220, 60);
+                ctx.strokeRect(rx - 120, ry - 30, 240, 60);
 
                 ctx.fillStyle = '#FFFFFF';
                 ctx.font = 'bold 16px sans-serif';
-                ctx.textBaseline = 'middle';
                 ctx.fillText('✨ REAPARECER', rx, ry);
             } else {
                 ctx.fillStyle = '#94a3b8';
