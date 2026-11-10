@@ -9,7 +9,7 @@ export class Enemy {
         this.y = startY;
         this.type = type;
         this.level = level; 
-        this.speed = 0.018; 
+        this.speed = 0.016 + (level * 0.002); // Los slimes de mayor nivel son ligeramente más ágiles
         this.radius = 0.35; 
         
         this.sprite = new Image();
@@ -22,14 +22,15 @@ export class Enemy {
         this.scale = 1.6;
 
         this.name = `Slime lv ${this.level}`;
-        this.maxHp = ProgressionSystem.calculateMaxHp(this.level);
+        const stats = ProgressionSystem.getEnemyStats(this.level);
+        this.maxHp = stats.hp;
         this.hp = this.maxHp;
-        this.attackPower = ProgressionSystem.calculateDamage(this.level);
+        this.attackPower = stats.damage;
 
         this.respawnTimer = 0; 
         this.fadeTimer = 0; 
         this.fleeTimer = 0; 
-        this.wasAttacked = false; // Bandera para enfurecerse si el héroe de mayor nivel ataca
+        this.wasAttacked = false; 
 
         this.animTimer = 0;
         this.currentFrame = 0;
@@ -65,13 +66,13 @@ export class Enemy {
         this.currentFrame = 0;
         this.animTimer = 0;
         this.fleeTimer = 0; 
-        this.wasAttacked = true; // ¡Se activa la furia al ser golpeado!
+        this.wasAttacked = true; // ¡Despierta su furia si el héroe lo ataca!
         this.moveAngle = Math.atan2(this.y - sourceY, this.x - sourceX);
     }
 
-    update(mapManager, objects = [], player = null) {
+    update(mapManager, objects = [], player = null, dt = 1) {
         if (this.state === 'dead') {
-            this.animTimer += 0.05;
+            this.animTimer += 0.05 * dt;
             if (this.animTimer >= 1) {
                 this.currentFrame++;
                 if (this.currentFrame >= 5) {
@@ -83,7 +84,7 @@ export class Enemy {
             return;
         }
 
-        if (this.attackCooldown > 0) this.attackCooldown--;
+        if (this.attackCooldown > 0) this.attackCooldown -= dt;
 
         let targetDist = 999;
         let pdx = 0;
@@ -95,34 +96,35 @@ export class Enemy {
             targetDist = Math.sqrt(pdx * pdx + pdy * pdy);
         }
 
-        // Umbral de huida ajustado a menos del 30% de vida
+        // Huida táctica si baja del 30% de vida
         const fleeThreshold = this.maxHp * 0.30;
         if (this.hp < fleeThreshold) {
             this.state = 'flee';
-            // Tras 3 segundos de huida ininterrumpida, regenera 0.3 HP por segundo
+            // Tras 3s de huida ininterrumpida, regenera 0.3 HP por segundo
             if (this.fleeTimer < 180) {
-                this.fleeTimer++;
+                this.fleeTimer += dt;
             } else {
-                this.hp = Math.min(fleeThreshold, this.hp + (0.3 / 60));
+                this.hp = Math.min(fleeThreshold, this.hp + ((0.3 / 60) * dt));
             }
         } else {
             this.fleeTimer = 0;
         }
 
-        // Si tu nivel es mayor, te ignora... a menos que lo hayas atacado (wasAttacked)
+        // Si el héroe es de mayor nivel, el slime lo respeta y no lo persigue (a menos que haya sido atacado)
         const playerIsHigherLevel = player && (player.level > this.level) && !this.wasAttacked;
 
         if (this.state === 'flee' && player) {
             const fleeAngle = Math.atan2(this.y - player.y, this.x - player.x);
-            const nextX = this.x + Math.cos(fleeAngle) * (this.speed * 1.2);
-            const nextY = this.y + Math.sin(fleeAngle) * (this.speed * 1.2);
+            const moveSpeed = (this.speed * 1.3) * dt;
+            const nextX = this.x + Math.cos(fleeAngle) * moveSpeed;
+            const nextY = this.y + Math.sin(fleeAngle) * moveSpeed;
             if (this.canMoveTo(nextX, nextY, mapManager, objects, player)) {
                 this.x = nextX;
                 this.y = nextY;
             }
             this.updateFacing(fleeAngle);
         } else if (this.state === 'hurt') {
-            const pushBackSpeed = 0.03;
+            const pushBackSpeed = 0.03 * dt;
             const nextX = this.x - Math.cos(this.moveAngle) * pushBackSpeed;
             const nextY = this.y - Math.sin(this.moveAngle) * pushBackSpeed;
             if (this.canMoveTo(nextX, nextY, mapManager, objects, player)) {
@@ -130,7 +132,7 @@ export class Enemy {
                 this.y = nextY;
             }
         } else if (this.state === 'attack') {
-            const lungeSpeed = 0.045;
+            const lungeSpeed = 0.045 * dt;
             const angleToPlayer = player ? Math.atan2(pdy, pdx) : this.moveAngle;
             const nextX = this.x + Math.cos(angleToPlayer) * lungeSpeed;
             const nextY = this.y + Math.sin(angleToPlayer) * lungeSpeed;
@@ -139,16 +141,17 @@ export class Enemy {
                 this.x = nextX;
                 this.y = nextY;
             }
-        } else if (player && player.state !== 'dead' && !playerIsHigherLevel && targetDist < 0.9 && this.attackCooldown === 0) {
+        } else if (player && player.state !== 'dead' && !playerIsHigherLevel && targetDist < 0.9 && this.attackCooldown <= 0) {
             this.state = 'attack';
             this.currentFrame = 0;
             this.animTimer = 0;
-            this.attackCooldown = 90;
-        } else if (player && player.state !== 'dead' && !playerIsHigherLevel && targetDist < 3.5) {
+            this.attackCooldown = 80;
+        } else if (player && player.state !== 'dead' && !playerIsHigherLevel && targetDist < 3.8) {
             this.state = 'walk';
             const angleToPlayer = Math.atan2(pdy, pdx);
-            const nextX = this.x + Math.cos(angleToPlayer) * this.speed;
-            const nextY = this.y + Math.sin(angleToPlayer) * this.speed;
+            const moveSpeed = this.speed * dt;
+            const nextX = this.x + Math.cos(angleToPlayer) * moveSpeed;
+            const nextY = this.y + Math.sin(angleToPlayer) * moveSpeed;
 
             if (this.canMoveTo(nextX, nextY, mapManager, objects, player)) {
                 this.x = nextX;
@@ -156,7 +159,7 @@ export class Enemy {
             }
             this.updateFacing(angleToPlayer);
         } else {
-            this.changeDirTimer += 0.02;
+            this.changeDirTimer += 0.02 * dt;
             if (this.changeDirTimer > 3) {
                 this.moveAngle = Math.random() * Math.PI * 2;
                 this.changeDirTimer = 0;
@@ -164,8 +167,9 @@ export class Enemy {
             }
 
             if (this.state === 'walk') {
-                const nextX = this.x + Math.cos(this.moveAngle) * (this.speed * 0.6);
-                const nextY = this.y + Math.sin(this.moveAngle) * (this.speed * 0.6);
+                const moveSpeed = (this.speed * 0.6) * dt;
+                const nextX = this.x + Math.cos(this.moveAngle) * moveSpeed;
+                const nextY = this.y + Math.sin(this.moveAngle) * moveSpeed;
                 
                 if (this.canMoveTo(nextX, nextY, mapManager, objects, player)) {
                     this.x = nextX;
@@ -176,12 +180,12 @@ export class Enemy {
         }
 
         let maxFrames = 4;
-        let animSpeed = 0.12;
+        let animSpeed = 0.12 * dt;
 
-        if (this.state === 'idle') { maxFrames = 4; animSpeed = 0.1; }
-        else if (this.state === 'walk' || this.state === 'flee') { maxFrames = 6; animSpeed = 0.18; }
-        else if (this.state === 'attack') { maxFrames = 7; animSpeed = 0.22; }
-        else if (this.state === 'hurt') { maxFrames = 3; animSpeed = 0.15; }
+        if (this.state === 'idle') { maxFrames = 4; animSpeed = 0.1 * dt; }
+        else if (this.state === 'walk' || this.state === 'flee') { maxFrames = 6; animSpeed = 0.18 * dt; }
+        else if (this.state === 'attack') { maxFrames = 7; animSpeed = 0.22 * dt; }
+        else if (this.state === 'hurt') { maxFrames = 3; animSpeed = 0.15 * dt; }
 
         this.animTimer += animSpeed;
         if (this.animTimer >= 1) {
