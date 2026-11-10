@@ -38,10 +38,11 @@ export class Player {
         
         this.isAttacking = false;
         this.attackCooldown = 0;
-        this.hasDealtDamageThisAttack = false; // Bandera para evitar daño múltiple por el mismo ataque
+        this.hasDealtDamageThisAttack = false;
 
         this.deathCounter = 0;
         this.showRestartButton = false;
+        this.outOfCombatTimer = 0; // Temporizador para regeneración fuera de combate (3s)
 
         this.levelUpFlash = {
             active: false,
@@ -110,6 +111,7 @@ export class Player {
         this.hurtTimer = 20;
         this.invincibleFrames = 40;
         this.knockbackAngle = Math.atan2(this.y - attackerY, this.x - attackerX);
+        this.outOfCombatTimer = 0; // Reiniciar contador al recibir daño
     }
 
     performAttack() {
@@ -119,8 +121,8 @@ export class Player {
         this.state = 'attack';
         this.currentFrame = 0;
         this.animTimer = 0;
-        this.attackCooldown = 45; // Cooldown estricto entre ataques
-        this.hasDealtDamageThisAttack = false; // Resetear bandera de impacto
+        this.attackCooldown = 45; 
+        this.hasDealtDamageThisAttack = false; 
     }
 
     update(inputManager, mapManager, objects = [], enemies = []) {
@@ -139,6 +141,15 @@ export class Player {
             this.deathCounter++;
             if (this.deathCounter >= 300) this.showRestartButton = true;
             return;
+        }
+
+        // Regeneración del héroe: Tras 3s (180 frames) de no recibir daño, recupera 0.3 HP por segundo
+        if (this.hp < this.maxHp) {
+            if (this.outOfCombatTimer < 180) {
+                this.outOfCombatTimer++;
+            } else {
+                this.hp = Math.min(this.maxHp, this.hp + (0.3 / 60));
+            }
         }
 
         if (this.attackCooldown > 0) this.attackCooldown--;
