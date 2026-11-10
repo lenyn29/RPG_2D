@@ -45,11 +45,14 @@ export class CombatSystem {
                 player.facing = closest.dy > 0 ? 'down' : 'up';
             }
 
+            // Poder de ataque exacto del héroe (1 para nivel 1)
             const baseDamage = player.attackPower || 1;
             const damageAmount = enemiesInRange.length === 1 ? baseDamage : baseDamage / 2;
 
             enemiesInRange.forEach(item => {
                 const targetEnemy = item.enemy;
+                
+                // Restar el daño exacto a la vida del enemigo
                 targetEnemy.hp -= damageAmount;
                 targetEnemy.applyDamage(player.x, player.y);
                 this.particles.emitBlood(targetEnemy.x, targetEnemy.y, 5);
@@ -64,7 +67,6 @@ export class CombatSystem {
                     targetEnemy.fadeTimer = 180; 
                     targetEnemy.respawnTimer = targetEnemy.level * 5 * 60; 
 
-                    // Recompensa de XP basada en el nivel del slime (Lv 1 = 10xp, Lv 2 = 20xp, etc.)
                     const xpReward = ProgressionSystem.getEnemyXpReward(targetEnemy.level);
                     player.gainXp(xpReward, this.particles, canvasWidth, canvasHeight);
                     this.addFloatingText(`+${xpReward} XP`, player.x, player.y - 0.8, '#3b82f6');
@@ -88,7 +90,7 @@ export class CombatSystem {
                     const enemyDamage = enemy.attackPower || 1;
                     player.hp -= enemyDamage;
                     player.takeDamage(enemy.x, enemy.y);
-                    this.particles.emitBlood(enemy.x, enemy.y, 6);
+                    this.particles.emitBlood(player.x, player.y, 6);
                     this.addFloatingText(`-${enemyDamage.toFixed(1)}`, player.x, player.y - 0.5, '#3b82f6'); 
 
                     if (player.hp <= 0) {
@@ -111,6 +113,7 @@ export class CombatSystem {
                     if (enemy.respawnTimer <= 0) {
                         enemy.x = enemy.spawnX;
                         enemy.y = enemy.spawnY;
+                        enemy.maxHp = ProgressionSystem.calculateMaxHp(enemy.level); // Asegurar 10 HP base en respawn
                         enemy.hp = enemy.maxHp;
                         enemy.state = 'idle';
                         enemy.currentFrame = 0;
