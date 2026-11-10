@@ -40,22 +40,40 @@ export class Player {
         
         this.deathCounter = 0;
         this.showRestartButton = false;
+
+        // Control del aviso visual de subida de nivel
+        this.levelUpNotification = {
+            active: false,
+            timer: 0,
+            text: ""
+        };
     }
 
-    gainXp(amount) {
+    gainXp(amount, particleSystem = null, canvasWidth = 0, canvasHeight = 0) {
         this.xp += amount;
         if (this.xp >= this.maxXp) {
-            this.levelUp();
+            this.levelUp(particleSystem, canvasWidth, canvasHeight);
         }
     }
 
-    levelUp() {
+    levelUp(particleSystem, canvasWidth, canvasHeight) {
         this.level++;
         this.xp = 0;
         this.maxXp = ProgressionSystem.calculateXpNeeded(this.level);
         this.maxHp = ProgressionSystem.calculateMaxHp(this.level);
-        this.hp = this.maxHp; // Curar al subir de nivel
+        this.hp = this.maxHp; // Curación completa al subir de nivel
         this.attackPower = ProgressionSystem.calculateDamage(this.level);
+
+        // Activar aviso visual y confeti
+        this.levelUpNotification = {
+            active: true,
+            timer: 150, // Duración en frames (aprox 2.5 segundos)
+            text: `⬆️ ¡NIVEL ${this.level} ALCANZADO!`
+        };
+
+        if (particleSystem && canvasWidth && canvasHeight) {
+            particleSystem.emitConfetti(canvasWidth, canvasHeight);
+        }
     }
 
     canMoveTo(newX, newY, mapManager, objects = [], enemies = []) {
@@ -103,6 +121,14 @@ export class Player {
     }
 
     update(inputManager, mapManager, objects = [], enemies = []) {
+        // Actualizar temporizador de notificación de nivel
+        if (this.levelUpNotification.active) {
+            this.levelUpNotification.timer--;
+            if (this.levelUpNotification.timer <= 0) {
+                this.levelUpNotification.active = false;
+            }
+        }
+
         if (this.state === 'dead') {
             this.animTimer += 0.05;
             if (this.animTimer >= 1) {
@@ -273,19 +299,17 @@ export class Player {
         const barHeight = 5;
         const barY = y + 6;
 
-        // Barra de HP
         ctx.fillStyle = 'rgba(0, 0, 0, 0.6)';
         ctx.fillRect(x - barWidth / 2, barY, barWidth, barHeight);
         const hpRatio = Math.max(0, this.hp / this.maxHp);
         ctx.fillStyle = '#22c55e';
         ctx.fillRect(x - barWidth / 2, barY, barWidth * hpRatio, barHeight);
 
-        // Barra de XP debajo de la barra de HP
         const xpY = barY + 7;
         ctx.fillStyle = 'rgba(0, 0, 0, 0.6)';
         ctx.fillRect(x - barWidth / 2, xpY, barWidth, 3);
         const xpRatio = Math.max(0, this.xp / this.maxXp);
-        ctx.fillStyle = '#3b82f6'; // Azul XP
+        ctx.fillStyle = '#3b82f6';
         ctx.fillRect(x - barWidth / 2, xpY, barWidth * xpRatio, 3);
     }
 }
